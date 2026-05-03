@@ -1,22 +1,22 @@
-"""Kinematics analysis functions for rotation data processing.
+"""Functions for kinematics analysis.
 
 Author: Christopher Millward
 """
 
 from typing import Tuple
+
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
 
 
-def extract_rotation_matrix(row: pd.Series, arm: str) -> npt.NDArray[np.float64]:
-    """Extract a 3x3 rotation matrix from a data row.
+def extract_rotation_matrix(row: npt.NDArray[np.float64], arm: str) -> npt.NDArray[np.float64]:
+    """Extract a 3x3 rotation matrix from a 1D numeric row.
 
-    Extracts the nine rotation matrix elements for the specified arm from
-    a row of motion capture data and returns them as a 3x3 NumPy array.
+    The expected row layout is the 18-value array produced by `np.loadtxt`
+    when reading the motion-capture file with the matrix columns only.
 
     Args:
-        row (pd.Series): A row from the motion capture data DataFrame.
+        row (npt.NDArray[np.float64]): A 1D row of rotation data.
         arm (str): Arm identifier, either 'L' (left) or 'R' (right).
 
     Returns:
@@ -24,34 +24,25 @@ def extract_rotation_matrix(row: pd.Series, arm: str) -> npt.NDArray[np.float64]
 
     Raises:
         ValueError: If arm is not 'L' or 'R'.
-        KeyError: If required matrix columns are missing from the row.
-
-    Example:
-        >>> row_data = pd.Series({'L00': 0.1, 'L01': -0.37, ..., 'L22': 0.41})
-        >>> R = extract_rotation_matrix(row_data, 'L')
-        >>> R.shape
-        (3, 3)
+        ValueError: If the row does not contain enough values.
     """
     if arm not in ['L', 'R']:
         raise ValueError(f"arm must be 'L' or 'R', got {arm}")
 
-    # Column names for the rotation matrix elements
-    columns = [f'{arm}{i}{j}' for i in range(3) for j in range(3)]
+    row_array = np.asarray(row, dtype=np.float64)
+    if row_array.ndim != 1 or row_array.size < 18:
+        raise ValueError(
+            'Each row must be a 1D array with at least 18 numeric values.'
+        )
 
-    try:
-        values: npt.NDArray[np.float64] = np.array(
-            row[columns].values, dtype=np.float64)
-    except KeyError as e:
-        raise KeyError(f"Missing rotation matrix columns for arm {arm}: {e}")
-
-    # Reshape into 3x3 matrix
-    return values.reshape(3, 3)
+    start_index = 0 if arm == 'L' else 9
+    return row_array[start_index:start_index + 9].reshape(3, 3)
 
 
 def calculate_rotation_angle(rotation_matrix: npt.NDArray[np.float64]) -> float:
     """Calculate the rotation angle in radians from a rotation matrix.
 
-    Computes the angle of rotation from a 3x3 rotation matrix using theeyr
+    Computes the angle of rotation from a 3x3 rotation matrix using the
     trace formula: θ = arccos((trace(R) - 1) / 2).
 
     Args:
@@ -85,14 +76,11 @@ def calculate_rotation_angle(rotation_matrix: npt.NDArray[np.float64]) -> float:
     return float(angle)
 
 
-def calculate_total_rotation(dataframe: pd.DataFrame, arm: str) -> float:
+def calculate_total_rotation(data: npt.NDArray[np.float64], arm: str) -> float:
     """Calculate total rotation magnitude for an arm across all frames.
 
-    Processes all rows in a motion capture DataFrame and computes the
-    accumulated rotation angle for the specified arm.
-
     Args:
-        dataframe (pd.DataFrame): Motion capture data with rotation matrix columns.
+        data (npt.NDArray[np.float64]): A 2D array with 18 numeric columns per row.
         arm (str): Arm identifier, either 'L' (left) or 'R' (right).
 
     Returns:
@@ -100,59 +88,45 @@ def calculate_total_rotation(dataframe: pd.DataFrame, arm: str) -> float:
 
     Raises:
         ValueError: If arm is not 'L' or 'R'.
-        KeyError: If required rotation matrix columns are missing.
-
-    Example:
-        >>> df = pd.read_csv('motion_data.csv')
-        >>> left_rotation = calculate_total_rotation(df, 'L')
-        >>> right_rotation = calculate_total_rotation(df, 'R')
+        ValueError: If the array does not have the expected shape.
     """
     if arm not in ['L', 'R']:
         raise ValueError(f"arm must be 'L' or 'R', got {arm}")
 
-    total_rotation = 0.0
+    data_array = np.asarray(data, dtype=np.float64)
+    if data_array.ndim != 2 or data_array.shape[1] < 18:
+        raise ValueError(
+            'Motion capture data must be a 2D array with at least 18 columns.'
+        )
 
-    for _, row in dataframe.iterrows():
-        rotation_matrix = extract_rotation_matrix(row, arm)
-        angle = calculate_rotation_angle(rotation_matrix)
-        total_rotation += angle
+    start_index = 0 if arm == 'L' else 9
+    matrices = data_array[:, start_index:start_index + 9].reshape(-1, 3, 3)
 
-    return total_rotation
+    traces = np.trace(matrices, axis1=1, axis2=2)
+    cos_angles = np.clip((traces - 1) / 2, -1.0, 1.0)
+    angles = np.arccos(cos_angles)
+
+    return float(angles.sum())
 
 
-def calculate_arm_rotations(filepath: str) -> Tuple[float, float]:
-    """Calculate total rotation for both arms from a motion capture file.
-
-    Loads motion capture data from a file and computes the total accumulated
-    rotation angle for both the left and right arms.
+def calculate_arm_rotations(data: npt.NDArray[np.float64]) -> Tuple[float, float]:
+    """Calculate total rotation for both arms from a motion capture array.
 
     Args:
-        filepath (str): Path to a motion capture data file (e.g., TSV, CSV).
+        data (npt.NDArray[np.float64]): Motion capture data loaded with `np.loadtxt`.
 
     Returns:
         Tuple[float, float]: A tuple of (left_rotation, right_rotation) in
             radians, representing total accumulated rotation for each arm.
 
     Raises:
-        FileNotFoundError: If the specified file does not exist.
-        ValueError: If required rotation matrix columns are missing.
-
-    Example:
-        >>> left_rot, right_rot = calculate_arm_rotations('./data/1_R_MATRICES 4-8-2015')
-        >>> print(f"Left arm: {left_rot:.2f} rad, Right arm: {right_rot:.2f} rad")
-        Left arm: 45.23 rad, Right arm: 38.91 rad
+        ValueError: If the input array does not have the expected shape.
     """
-    # Try to load the file as TSV (with tab separator)
     try:
-        df = pd.read_csv(filepath, sep='\t')
-    except FileNotFoundError as e:
-        raise FileNotFoundError(
-            f"Motion capture file not found: {filepath}") from e
-    except Exception as e:
-        raise ValueError(f"Failed to parse motion capture file: {e}") from e
+        left_rotation = calculate_total_rotation(data, 'L')
+        right_rotation = calculate_total_rotation(data, 'R')
 
-    # Calculate total rotation for each arm
-    left_rotation = calculate_total_rotation(df, 'L')
-    right_rotation = calculate_total_rotation(df, 'R')
+    except Exception as e:
+        raise ValueError(f"Failed to parse motion capture data: {e}") from e
 
     return left_rotation, right_rotation

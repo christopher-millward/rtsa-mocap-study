@@ -5,6 +5,8 @@ Author: Christopher Millward
 """
 
 from typing import List, TypedDict, Literal, cast
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 
@@ -30,6 +32,17 @@ class ParticipantDetails(TypedDict):
     age: int
     left_rotation: float | None
     right_rotation: float | None
+
+
+def _arms_for_side(side: Literal['right', 'left', 'both', None]) -> set[Literal['right', 'left']]:
+    """Translate a side label into the affected arm labels."""
+    if side == 'right':
+        return {'right'}
+    if side == 'left':
+        return {'left'}
+    if side == 'both':
+        return {'right', 'left'}
+    return set()
 
 
 def load_participant_details(filepath: str) -> List[ParticipantDetails]:
@@ -84,12 +97,24 @@ def load_participant_details(filepath: str) -> List[ParticipantDetails]:
             tsa_side = None
 
         # Determine dominant arm
-        if row.get('R-DOM') == 1:
+        r_dom = row.get('R-DOM') == 1
+        l_dom = row.get('L-DOM') == 1
+
+        if r_dom == l_dom:
+            raise ValueError(
+                'Each participant must have exactly one dominant arm flag set.'
+            )
+        if r_dom:
             dominant_arm = 'right'
-        elif row.get('L-DOM') == 1:
-            dominant_arm = 'left'
         else:
-            dominant_arm = None
+            dominant_arm = 'left'
+
+        # Make sure RTSA and TSA are not on the same arm
+        if _arms_for_side(rtsa_side) & _arms_for_side(tsa_side):
+            """checks for an intersection between the two sets"""
+            raise ValueError(
+                'A participant cannot have RTSA and TSA on the same arm.'
+            )
 
         participant: ParticipantDetails = {
             'filename': cast(str, row.get('fname')),
@@ -104,3 +129,25 @@ def load_participant_details(filepath: str) -> List[ParticipantDetails]:
         participants.append(participant)
 
     return participants
+
+
+def load_motion_capture_data(
+    filename: str,
+    data_dir: str = './raw_data',
+) -> npt.NDArray[np.float64]:
+    """Load motion-capture data from a tab-delimited file into a NumPy array.
+
+    Args:
+        filename (str): Motion-capture filename in the expected format from `ParticipantDetails['filename']`.
+        data_dir (str): Directory that contains the raw motion-capture files.
+
+    Returns:
+        npt.NDArray[np.float64]: Array of motion-capture values loaded with `np.loadtxt`.
+    """
+    filepath = f'{data_dir}/{filename}'
+    return np.loadtxt(
+        filepath,
+        delimiter='\t',
+        skiprows=1,
+        usecols=range(1, 19),
+    )
