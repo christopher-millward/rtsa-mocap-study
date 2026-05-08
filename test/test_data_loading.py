@@ -169,6 +169,81 @@ def test_load_participant_details_preserves_filename_and_age(filename, age):
     assert participants[0]["age"] == age
 
 
+def test_load_participant_details_initializes_nested_arm_rotation_fields_to_none():
+    participants = _load_from_rows(
+        [
+            {
+                "fname": "participant-rotations",
+                "RTSA-R": 0,
+                "RTSA-L": 0,
+                "TSA-R": 0,
+                "TSA-L": 0,
+                "R-DOM": 1,
+                "L-DOM": 0,
+                "Age": 74,
+            }
+        ]
+    )
+
+    participant = participants[0]
+    expected_arm_metrics = {
+        "humerothoracic_rotation": None,
+        "glenohumeral_rotation": None,
+        "total_rotation_x": None,
+        "total_rotation_y": None,
+        "total_rotation_z": None,
+    }
+
+    assert participant["left"] == expected_arm_metrics
+    assert participant["right"] == expected_arm_metrics
+
+
+@pytest.mark.parametrize("op_side", ["left", "right"])
+def test_load_participant_details_allows_dynamic_side_access_for_arm_metrics(op_side):
+    participants = _load_from_rows(
+        [
+            {
+                "fname": "participant-op-side",
+                "RTSA-R": 0,
+                "RTSA-L": 0,
+                "TSA-R": 0,
+                "TSA-L": 0,
+                "R-DOM": 1,
+                "L-DOM": 0,
+                "Age": 74,
+            }
+        ]
+    )
+
+    participant = participants[0]
+    participant[op_side]["humerothoracic_rotation"] = 1.23
+
+    assert participant[op_side]["humerothoracic_rotation"] == 1.23
+
+
+def test_load_participant_details_uses_independent_left_and_right_arm_dictionaries():
+    participants = _load_from_rows(
+        [
+            {
+                "fname": "participant-independent-arms",
+                "RTSA-R": 0,
+                "RTSA-L": 0,
+                "TSA-R": 0,
+                "TSA-L": 0,
+                "R-DOM": 1,
+                "L-DOM": 0,
+                "Age": 74,
+            }
+        ]
+    )
+
+    participant = participants[0]
+    participant["left"]["total_rotation_x"] = 2.5
+
+    assert participant["left"]["total_rotation_x"] == 2.5
+    assert participant["right"]["total_rotation_x"] is None
+
+
 @pytest.mark.parametrize(
     ("rtsa_r", "rtsa_l", "tsa_r", "tsa_l"),
     [

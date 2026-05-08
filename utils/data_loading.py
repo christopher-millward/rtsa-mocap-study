@@ -10,6 +10,16 @@ import numpy.typing as npt
 import pandas as pd
 
 
+class ArmRotationDetails(TypedDict):
+    """Type definition for per-arm rotation summary metrics."""
+
+    humerothoracic_rotation: float | None
+    glenohumeral_rotation: float | None
+    total_rotation_x: float | None
+    total_rotation_y: float | None
+    total_rotation_z: float | None
+
+
 class ParticipantDetails(TypedDict):
     """Type definition for participant detail records.
 
@@ -21,8 +31,8 @@ class ParticipantDetails(TypedDict):
         dominant_arm ('right' | 'left' | None): Participant's dominant arm
             ('right', 'left', or None).
         age (int): Participant's age in years.
-        left_rotation (float | None): Total accumulated rotation for left arm in radians.
-        right_rotation (float | None): Total accumulated rotation for right arm in radians.
+        left (ArmRotationDetails): Rotation summary metrics for the left arm.
+        right (ArmRotationDetails): Rotation summary metrics for the right arm.
     """
 
     filename: str
@@ -30,8 +40,8 @@ class ParticipantDetails(TypedDict):
     tsa_side: Literal['right', 'left', 'both', None]
     dominant_arm: Literal['right', 'left', None]
     age: int
-    left_rotation: float | None
-    right_rotation: float | None
+    left: ArmRotationDetails
+    right: ArmRotationDetails
 
 
 def _arms_for_side(side: Literal['right', 'left', 'both', None]) -> set[Literal['right', 'left']]:
@@ -122,8 +132,20 @@ def load_participant_details(filepath: str) -> List[ParticipantDetails]:
             'tsa_side': tsa_side,
             'dominant_arm': dominant_arm,
             'age': cast(int, row.get('Age')),
-            'left_rotation': None,
-            'right_rotation': None,
+            'left': {
+                'humerothoracic_rotation': None,
+                'glenohumeral_rotation': None,
+                'total_rotation_x': None,
+                'total_rotation_y': None,
+                'total_rotation_z': None,
+            },
+            'right': {
+                'humerothoracic_rotation': None,
+                'glenohumeral_rotation': None,
+                'total_rotation_x': None,
+                'total_rotation_y': None,
+                'total_rotation_z': None,
+            },
         }
 
         participants.append(participant)

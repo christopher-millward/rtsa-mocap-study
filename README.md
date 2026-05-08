@@ -180,7 +180,9 @@ Columns:
 
 ## Next Steps / TODO
 
+- Build scapular correction module (can switch out module logic later)
+- Calculate amount of motion about each axis
 - Segment location binning (identify which region each frame is within (elev + POE))
+   - Use this to determine total magnitude 
 - Visualization functions (trajectories, heatmaps, statistical plots)
 - Statistical analysis and export
-
