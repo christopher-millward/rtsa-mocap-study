@@ -180,9 +180,10 @@ Columns:
 
 ## Next Steps / TODO
 
-- Build scapular correction module (can switch out module logic later)
+- Read through test_kinematics.py to make sure tests for last refactor are actually good.
 - Calculate amount of motion about each axis
 - Segment location binning (identify which region each frame is within (elev + POE))
    - Use this to determine total magnitude 
+- Build scapular correction module (can switch out module logic later)
 - Visualization functions (trajectories, heatmaps, statistical plots)
 - Statistical analysis and export
