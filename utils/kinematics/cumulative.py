@@ -1,4 +1,5 @@
-"""Functions for kinematics analysis.
+
+"""Functions for calculating the cumulative rotation across all axes .
 
 Author: Christopher Millward
 """
@@ -74,18 +75,6 @@ def calculate_rotation_angles(rotation_matrices: npt.NDArray[np.float64]) -> npt
     traces = np.trace(rotation_matrices, axis1=1, axis2=2)
     cos_angles = np.clip((traces - 1) / 2, -1.0, 1.0)
     angles = np.arccos(cos_angles)
-
-
-    # Calculate trace (sum of diagonal elements)
-    # trace = np.trace(rotation_matrix)
-
-    # Compute the argument for arccos
-    # Clamp to [-1, 1] to handle numerical precision issues
-    # cos_angle = (trace - 1) / 2
-    # cos_angle = np.clip(cos_angle, -1.0, 1.0)
-
-    # Calculate rotation angle
-    # angle = np.arccos(cos_angle)
 
     return angles
 

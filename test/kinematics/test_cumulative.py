@@ -3,7 +3,7 @@ from unittest.mock import call, patch
 import numpy as np
 import pytest
 
-from utils.kinematics import (
+from utils.kinematics.cumulative import (
     calculate_arm_rotations,
     calculate_rotation_angles,
     calculate_total_rotation,
@@ -68,8 +68,11 @@ def _rotation_matrix_xyz(
 
     return rz @ ry @ rx
 
+def _is_rotation_matrix(R):
+    """Sanity check orthonormality."""
+    return np.allclose(R.T @ R, np.eye(3), atol=1e-8)
 
-# --- Building Matrices ---
+# --- Tests for create_rotation_matrices ---
 # Extracting matrices should preserve the arm-specific column ordering frame by frame.
 @pytest.mark.parametrize(
     "arm",
@@ -108,6 +111,36 @@ def test_create_rotation_matrices_returns_expected_3d_array(arm):
     assert matrices.shape == (2, 3, 3)
     assert np.array_equal(matrices, expected)
 
+# Test that it actually builds valid rotation matrices, not just any 3x3 arrays.
+@pytest.mark.parametrize(
+    "arm",
+    [
+        pytest.param("L", id="left"),
+        pytest.param("R", id="right"),
+    ],
+)
+def test_create_rotation_matrices_returns_valid_rotation_matrices(arm):
+    """Each extracted frame should still be a valid rotation matrix."""
+    left_frames = [
+        np.eye(3, dtype=np.float64),
+        _rotation_matrix_x(np.pi / 6),
+    ]
+    right_frames = [
+        _rotation_matrix_y(np.pi / 4),
+        _rotation_matrix_z(np.pi / 3),
+    ]
+    data = np.vstack(
+        [
+            _row_with_both_arms(left_frames[0], right_frames[0]),
+            _row_with_both_arms(left_frames[1], right_frames[1]),
+        ]
+    )
+
+    matrices = create_rotation_matrices(data, arm)
+
+    assert matrices.shape == (2, 3, 3)
+    assert all(_is_rotation_matrix(matrix) for matrix in matrices)
+
 # Send invalid arm identifiers to the extractor and expect a ValueError.
 @pytest.mark.parametrize(
     "arm",
@@ -122,8 +155,8 @@ def test_extract_rotation_matrix_rejects_invalid_arm(arm):
         create_rotation_matrices(np.zeros(18, dtype=np.float64), arm)
 
 
-# --- Calculating Angles ---
-# The angle calculation should follow the trace formula for a batch of matrices.
+# --- Tests for calculate_total_rotation ---
+# Test that known rotation matrices yield expected angles.
 @pytest.mark.parametrize(
     ("rotation_matrices", "expected"),
     [
@@ -143,8 +176,6 @@ def test_calculate_rotation_angles(rotation_matrices, expected):
     angles = calculate_rotation_angles(rotation_matrices)
     assert np.allclose(angles, expected)
 
-
-# --- Total Rotation ---
 # Total rotation sums the angle for every frame in the input array.
 @pytest.mark.parametrize(
     ("arm", "rotation_builder", "target_angle", "n_samples"),
@@ -310,13 +341,13 @@ def test_calculate_total_rotation_rejects_invalid_arm(arm):
         calculate_total_rotation(np.zeros((0, 18), dtype=np.float64), arm)
 
 
-# --- Get Rotations for Each Arm ---
+# --- Tests for calculate_arm_rotations ---
 # The file-level helper should load once and delegate to both arm totals.
 def test_calculate_arm_rotations_returns_both_arms():
     test_data = np.vstack([_row_with_both_arms(np.eye(3), np.eye(3))])
 
     # replace calculate_total_rotation with a mock that returns fixed values for left and right arms
-    with patch("utils.kinematics.calculate_total_rotation", side_effect=[1.25, 2.5]) as mock_total_rotation:
+    with patch("utils.kinematics.cumulative.calculate_total_rotation", side_effect=[1.25, 2.5]) as mock_total_rotation:
         left_rotation, right_rotation = calculate_arm_rotations(test_data)
 
     # check that calculate_total_rotation was called with the correct arguments for each arm
@@ -330,6 +361,6 @@ def test_calculate_arm_rotations_returns_both_arms():
 def test_calculate_arm_rotations_wraps_exceptions_from_total_rotation():
     # If calculate_total_rotation raises, calculate_arm_rotations should
     # wrap it as a ValueError with a helpful message.
-    with patch("utils.kinematics.calculate_total_rotation", side_effect=Exception("Boom!")):
+    with patch("utils.kinematics.cumulative.calculate_total_rotation", side_effect=Exception("Boom!")):
         with pytest.raises(ValueError, match="Failed to parse motion capture data"):
             calculate_arm_rotations(np.zeros((0, 18), dtype=np.float64))

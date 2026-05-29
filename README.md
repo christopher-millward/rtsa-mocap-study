@@ -46,12 +46,19 @@ New Analysis/
 │
 ├── utils/                             # Utility modules
 │   ├── data_loading.py                # Load participant metadata (Excel) and motion data (TSV)
-│   ├── kinematics.py                  # Shoulder kinematics calculations
+│   │
+│   ├── kinematics/                    # Shoulder kinematics calculations
+│   │    ├── cumulative.py             # Calculate cumulative rotation across all axes (single value)
+│   │    └── individual_axes.py        # Calculate rotation about each axis individually
+│   │
 │   └── visualizations.py              # (placeholder) Plotting functions
 │
 ├── test/                              # Unit tests
 │   ├── test_data_loading.py           # Tests for participant loading and motion data I/O
-│   └── test_kinematics.py             # Tests for kinematics calculations
+│   │
+│   └── kinematics/                    # Shoulder kinematics calculations
+│        ├── test_cumulative.py        # Tests for cumulative motion functions
+│        └── test_individual_axes.py   # Tests for individual axis rotation functions
 │
 ├── raw_data/
 │   ├── participant_details.xlsx       # Metadata: participant info, RTSA/TSA status, age, dominance
@@ -180,6 +187,7 @@ Columns:
 
 ## Next Steps / TODO
 - Calculate amount of motion about each axis
+- Add explanation of individual axis claclulations to README mathematical foundation section
 - Segment location binning (identify which region each frame is within (elev + POE))
    - Use this to determine total magnitude 
 - Build scapular correction module (can switch out module logic later)
