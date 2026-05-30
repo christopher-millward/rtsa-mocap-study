@@ -8,6 +8,8 @@ from typing import Tuple
 
 import numpy as np
 import numpy.typing as npt
+
+
 def compute_incremental_rotation_matrices(
     rotation_matrices: npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
@@ -51,8 +53,7 @@ def compute_incremental_rotation_matrices(
     curr = matrices[1:]
 
     # Compute relative rotations: R_delta[t] = R_current[t] @ R_previous[t].T
-    # Use batched matrix multiplication
-    deltas = np.matmul(curr, np.transpose(prev, (0, 2, 1)))
+    deltas = np.matmul(curr, np.transpose(prev, (0, 2, 1))) # keep batch axis fixed, swap matrix axes 
 
     return deltas
 
