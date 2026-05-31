@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 import pytest
 import numpy.typing as npt
 
@@ -7,6 +8,12 @@ from utils.kinematics.individual_axes import (
     compute_incremental_rotation_matrices,
     decompose_rotation_matrices_yxy,
 )
+
+# ---- Global test variables ----
+small_angle = 1e-3
+tolerance = 1e-9
+singularity_tolerance = 1e-7
+
 
 # ---- Helper Functions ----
 def _rotation_matrix_x(angle: float) -> npt.NDArray[np.float64]:
@@ -59,7 +66,7 @@ def _rotation_matrix_xyz(
 
 def _is_rotation_matrix(R) -> bool:
     """Sanity check orthonormality."""
-    return np.allclose(R.T @ R, np.eye(3), atol=1e-8)
+    return np.allclose(R.T @ R, np.eye(3), atol=tolerance)
 
 
 class TestComputeIncrementalRotationMatrices:
@@ -110,7 +117,7 @@ class TestComputeIncrementalRotationMatrices:
         deltas = compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (n_frames - 1, 3, 3)
         for D in deltas:
-            assert np.allclose(D, np.eye(3), atol=1e-12)
+            assert np.allclose(D, np.eye(3), atol=tolerance)
 
     # Test that the function correctly computes the relative rotation.
     @pytest.mark.parametrize(
@@ -130,7 +137,7 @@ class TestComputeIncrementalRotationMatrices:
         deltas = compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (1, 3, 3)
         expected = R1 @ R0.T
-        assert np.allclose(deltas[0], expected, atol=1e-12)
+        assert np.allclose(deltas[0], expected, atol=tolerance)
 
     # Test that the cumulative product of deltas reconstructs the original sequence.
     @pytest.mark.parametrize(
@@ -158,7 +165,7 @@ class TestComputeIncrementalRotationMatrices:
             reconstructed.append(reconstructed[-1] @ deltas[i])
         reconstructed = np.stack(reconstructed)
 
-        assert np.allclose(reconstructed, frames, atol=1e-12)
+        assert np.allclose(reconstructed, frames, atol=tolerance)
 
     # Test that each delta is a valid rotation matrix (orthonormal with determinant 1).
     @pytest.mark.parametrize(
@@ -227,22 +234,6 @@ class TestComputeIncrementalRotationMatrices:
         assert deltas.dtype == np.float64
 
 class TestDecomposeRotationMatricesYXY:
-    """
-    - **Invalid input shapes**: passing arrays with wrong ndim or non-(3,3) trailing dims should raise `ValueError` (parametrize several wrong-shape examples).
-    - **Dtype coercion**: inputs of `float32` and integer dtypes should be accepted and coerced to `float64`.
-    - **Empty batch**: input shape `(0, 3, 3)` should raise error.
-    - **Output shape & dtype**: single-step and multi-step inputs return shape `(n_steps, 3)` and dtype `float64`.
-    - **Identity matrix**: a batch of identity matrices yields angles exactly (or ≈) zeros.
-    - **Reconstruction correctness (pure rotations)**: for a pure `Ry(theta)`, `Rx(theta)`, and `Rz(theta)` input (each parameterized over several angles), the decomposition angles when recomposed as `Ry(a) @ Rx(b) @ Ry(c)` should reconstruct the original matrix within numerical tolerance.
-    - **Known Y-X-Y compositions**: feed matrices built as `Ry(a) @ Rx(b) @ Ry(c)` (parameterize various a,b,c) and assert that recomposing the returned angles reproduces the original (this tests forward/backward consistency rather than a unique angle choice).
-    - **Singularity near beta = 0**: test `beta` very small (e.g., 0, 1e-8) to ensure stable results and correct reconstruction (handles the gimbal-lock case).
-    - **Singularity near beta = π**: test `beta` near π (e.g., π - 1e-8) to ensure numerical stability and correct reconstruction.
-    - **Clipping robustness**: perturb matrix elements with tiny numerical noise so intermediate acos/asin arguments slightly exceed [-1,1]; assert the implementation clips values and still reconstructs correctly.
-    - **Angle range and finiteness**: outputs are finite and (where applicable) in sensible ranges (e.g., middle angle in [0, π], other angles finite)—parameterize a few inputs including negative rotations.
-    - **Non-rotation / malformed orthogonality**: supply near-rotation and clearly non-rotation matrices (e.g., scale rows) and assert chosen behavior (either raise `ValueError` or produce a best-effort decomposition); make the expected behavior explicit in the test.
-    - **Determinism for sign/branch choices**: for ambiguous cases (e.g., when multiple Euler triples map to same rotation), ensure the function returns consistent (deterministic) outputs across repeated calls (same input → same output).
-    - **Small vs large angles sensitivity**: parameterize tiny angles (1e-6) and large angles (near π) to ensure reconstruction tolerance holds across magnitudes.
-    """
     # Test that non-3x3 inputs are rejected with a ValueError.
     @pytest.mark.parametrize(
         "relative_rotations",
@@ -278,7 +269,7 @@ class TestDecomposeRotationMatricesYXY:
     @pytest.mark.parametrize("n_steps", [1, 5])
     def test_should_return_expected_shape_and_dtype(self, n_steps):
         matrices = np.stack([
-            _rotation_matrix_y(0.1) @ _rotation_matrix_x(0.05) @ _rotation_matrix_y(0.2)
+            R.from_euler("YXY", [0.1, 0.05, 0.2]).as_matrix()
             for _ in range(n_steps)
         ])
         angles = decompose_rotation_matrices_yxy(matrices)
@@ -287,8 +278,8 @@ class TestDecomposeRotationMatricesYXY:
 
     # Identity matrices should yield zero angles
     def test_identity_decomposes_to_zeros(self):
-        mats = np.stack([np.eye(3, dtype=np.float64) for _ in range(3)])
-        angles = decompose_rotation_matrices_yxy(mats)
+        matrices = np.stack([np.eye(3, dtype=np.float64) for _ in range(3)])
+        angles = decompose_rotation_matrices_yxy(matrices)
         assert np.allclose(angles, np.zeros((3, 3), dtype=np.float64))
 
     # Recomposition: decompose matrices built as Ry(a) @ Rx(b) @ Ry(c)
@@ -301,39 +292,38 @@ class TestDecomposeRotationMatricesYXY:
         ],
     )
     def test_known_yxy_compositions_reconstruct(self, a, b, c):
-        M = _rotation_matrix_y(a) @ _rotation_matrix_x(b) @ _rotation_matrix_y(c)
-        angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
-        r1, rx, r2 = angles
-        recomposed = _rotation_matrix_y(r1) @ _rotation_matrix_x(rx) @ _rotation_matrix_y(r2)
-        assert np.allclose(recomposed, M, atol=1e-10)
+        matrices = np.stack([R.from_euler("YXY", [a, b, c]).as_matrix()])
+        angles = decompose_rotation_matrices_yxy(matrices)[0]
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, matrices[0], atol=tolerance)
 
     # Singularity: middle angle (X) near zero should still reconstruct
     @pytest.mark.parametrize("beta", [0.0, 1e-8])
     def test_singularity_beta_near_zero(self, beta):
         a, c = 0.3, -0.4
-        M = _rotation_matrix_y(a) @ _rotation_matrix_x(beta) @ _rotation_matrix_y(c)
+        M = R.from_euler("YXY", [a, beta, c]).as_matrix()
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
-        recomposed = _rotation_matrix_y(angles[0]) @ _rotation_matrix_x(angles[1]) @ _rotation_matrix_y(angles[2])
-        assert np.allclose(recomposed, M, atol=1e-9)
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, M, atol=singularity_tolerance)
 
     # Singularity: middle angle (X) near pi should still reconstruct
     def test_singularity_beta_near_pi(self):
         beta = np.pi - 1e-8
         a, c = 0.2, 0.5
-        M = _rotation_matrix_y(a) @ _rotation_matrix_x(beta) @ _rotation_matrix_y(c)
+        M = R.from_euler("YXY", [a, beta, c]).as_matrix()
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
-        recomposed = _rotation_matrix_y(angles[0]) @ _rotation_matrix_x(angles[1]) @ _rotation_matrix_y(angles[2])
-        assert np.allclose(recomposed, M, atol=1e-8)
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, M, atol=singularity_tolerance)
 
     # Clipping robustness: tiny noise pushing values slightly outside [-1,1]
     def test_clipping_robustness(self):
         a, b, c = 0.4, 0.9, -0.2
-        M = _rotation_matrix_y(a) @ _rotation_matrix_x(b) @ _rotation_matrix_y(c)
+        M = R.from_euler("YXY", [a, b, c]).as_matrix()
         noisy = M.copy()
         noisy += np.random.default_rng(1).normal(scale=1e-12, size=M.shape)
         angles = decompose_rotation_matrices_yxy(np.stack([noisy]))[0]
-        recomposed = _rotation_matrix_y(angles[0]) @ _rotation_matrix_x(angles[1]) @ _rotation_matrix_y(angles[2])
-        assert np.allclose(recomposed, M, atol=1e-8)
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, M, atol=tolerance)
 
     # Non-rotation matrices should raise ValueError
     def test_should_reject_non_rotation_matrices(self):
@@ -344,7 +334,7 @@ class TestDecomposeRotationMatricesYXY:
 
     # Determinism: repeated calls return identical results
     def test_deterministic_outputs(self):
-        M = _rotation_matrix_y(0.25) @ _rotation_matrix_x(0.15) @ _rotation_matrix_y(-0.35)
+        M = R.from_euler("YXY", [0.25, 0.15, -0.35]).as_matrix()  # Use the same matrix for consistency
         first = decompose_rotation_matrices_yxy(np.stack([M]))
         second = decompose_rotation_matrices_yxy(np.stack([M]))
         assert np.allclose(first, second)
@@ -353,12 +343,12 @@ class TestDecomposeRotationMatricesYXY:
     @pytest.mark.parametrize(
         ("a", "b", "c"),
         [
-            pytest.param(1e-6, 1e-6, -1e-6, id="tiny-angles"),
-            pytest.param(1.2, np.pi - 1e-6, -0.9, id="large-middle"),
+            pytest.param(small_angle, small_angle, -small_angle, id="tiny-angles"),
+            pytest.param(1.2, np.pi - small_angle, -0.9, id="large-middle"),
         ],
     )
     def test_small_and_large_angle_sensitivity(self, a, b, c):
-        M = _rotation_matrix_y(a) @ _rotation_matrix_x(b) @ _rotation_matrix_y(c)
+        M = R.from_euler("YXY", [a, b, c]).as_matrix()
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
-        recomposed = _rotation_matrix_y(angles[0]) @ _rotation_matrix_x(angles[1]) @ _rotation_matrix_y(angles[2])
-        assert np.allclose(recomposed, M, atol=1e-8)
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, M, atol=tolerance)

@@ -10,6 +10,32 @@ from typing import Tuple
 from scipy.spatial.transform import Rotation as R
 
 
+def _validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
+    """Validate that a batch of 3x3 matrices are proper rotation matrices.
+
+    The check is fully vectorized over the batch dimension. It verifies that
+    each matrix is orthonormal by confirming ``R.T @ R == I`` for every matrix
+    in the batch, and it rejects improper rotations by requiring each
+    determinant to be approximately ``+1``.
+
+    Args:
+        matrices (npt.NDArray[np.float64]): Array of candidate rotation
+            matrices with shape ``(n_steps, 3, 3)``.
+
+    Raises:
+        ValueError: If the input is not a batch of 3x3 matrices, if any matrix
+            is not orthonormal, or if any determinant differs from ``+1``.
+    """
+    gram = np.matmul(np.transpose(matrices, (0, 2, 1)), matrices)
+    identity = np.broadcast_to(np.eye(3, dtype=np.float64), gram.shape)
+    if not np.allclose(gram, identity, atol=1e-8):
+        raise ValueError("relative_rotations must be orthonormal rotation matrices")
+
+    dets = np.linalg.det(matrices)
+    if not np.allclose(dets, 1.0, atol=1e-6):
+        raise ValueError("relative_rotations must have determinant 1")
+
+
 def compute_incremental_rotation_matrices(
     rotation_matrices: npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
@@ -29,19 +55,20 @@ def compute_incremental_rotation_matrices(
             with shape (n_frames - 1, 3, 3).
 
     Raises:
-        ValueError: If input does not have shape (n_frames, 3, 3) or has fewer
-            than two frames.
+        ValueError: If input does not have shape (n_frames, 3, 3), has fewer
+            than two frames, is not orthonormal, or has determinants that differ from 1.
     """
     
     # Coerce to ndarray with correct dtype
     matrices = np.asarray(rotation_matrices, dtype=np.float64)
 
-    # Validate shape: must be (n_frames, 3, 3) and have at least two frames
+    # Validate shape is (n_frames, 3, 3)
     if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
         raise ValueError(
             'rotation_matrices must have shape (n_frames, 3, 3)'
         )
 
+    # Validate shape has at least 2 frames
     n_frames = matrices.shape[0]
     if n_frames < 2:
         raise ValueError(
@@ -81,22 +108,16 @@ def decompose_rotation_matrices_yxy(
     # Coerce to ndarray with correct dtype
     matrices = np.asarray(relative_rotations, dtype=np.float64)
 
-    # Validate shape: must be (n_steps, 3, 3)
+
+    # Validate shape is (n_frames, 3, 3)
     if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
-        raise ValueError(
-            "relative_rotations must have shape (n_steps, 3, 3)"
-        )
+        raise ValueError("relative_rotations must have shape (n_steps, 3, 3)")
+    
+    #Validate orthonormality and determinant of each matrix
+    _validate_orthonorm_and_det(matrices)
 
-    n_steps = matrices.shape[0]
-    # Empty batch -> empty result
-    if n_steps == 0:
-        raise ValueError(
-            "relative_rotations must contain at least one step for decomposition"
-        )
-
-    # Perform vectorized Euler decomposition using intrinsic Y-X-Y sequence
     euler_angles = R.from_matrix(matrices).as_euler(
-        seq="yxy",
+        seq="YXY",  # Must be uppercase for intrinsic rotations in scipy
         degrees=False,
     )
 
