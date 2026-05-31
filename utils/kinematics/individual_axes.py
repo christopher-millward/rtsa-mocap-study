@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import Tuple
 from scipy.spatial.transform import Rotation as R
+from utils.kinematics.cumulative import create_rotation_matrices
 
 
 def _validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
@@ -113,6 +114,10 @@ def decompose_rotation_matrices_yxy(
     if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
         raise ValueError("relative_rotations must have shape (n_steps, 3, 3)")
     
+    # Reject empty batch explicitly
+    if matrices.shape[0] == 0:
+        raise ValueError("relative_rotations must contain at least one matrix")
+
     #Validate orthonormality and determinant of each matrix
     _validate_orthonorm_and_det(matrices)
 
@@ -143,13 +148,28 @@ def accumulate_euler_components(
 
     Raises:
         ValueError: If input does not have shape (n_steps, 3).
+        ValueError: If input contains negative values.
+        ValueError: If input is empty.
     """
-    # Validate input as a 2D array with exactly three columns.
-    # Validate that the array is not empty.
-    # Validate that the array has no negative numbers.
-    # Sum each Euler component independently across rows.
-    # Convert summed values to Python floats and return as a 3-tuple.
-    raise NotImplementedError
+    
+    # Ensure correct dtype
+    all_components = np.asarray(euler_angles, dtype=np.float64)
+
+    # Validate shape is 2D with exactly 3 columns
+    if all_components.ndim != 2 or all_components.shape[1] != 3:
+        raise ValueError("euler_angles must have shape (n_steps, 3)")
+
+    # Reject empty batch
+    if all_components.shape[0] == 0:
+        raise ValueError("euler_angles must contain at least one row")
+
+    # Reject negative values (tests expect rejection)
+    if np.any(all_components < 0.0):
+        raise ValueError("euler_angles must not contain negative values")
+
+    # Sum each column (component) across rows and convert to native floats
+    sums = np.sum(all_components, axis=0)
+    return (float(sums[0]), float(sums[1]), float(sums[2]))
 
 
 def calculate_cumulative_axis_motion(
@@ -158,9 +178,10 @@ def calculate_cumulative_axis_motion(
 ) -> Tuple[float, float, float]:
     """Calculate cumulative Y-X-Y component motion for one arm.
 
-    This is the high-level orchestration function for one arm. It is designed
-    to reuse existing matrix extraction functionality and then apply the
-    timestep-relative/decomposition/summation pipeline.
+    This is the high-level orchestration function for one arm. It creates relative 
+    rotation matrices from the absolute orientations, decomposes them into Euler
+    components, and then sums each component independently to get cumulative motion
+    values.
 
     Args:
         data (npt.NDArray[np.float64]): Motion capture table loaded via
@@ -177,36 +198,59 @@ def calculate_cumulative_axis_motion(
     Reuse:
         - Reuse ``create_rotation_matrices`` to extract 3x3 matrices per frame.
     """
-    # Reuse create_rotation_matrices(data, arm) to get absolute orientations.
-    # Compute relative rotations between consecutive frames.
-    # Decompose relative rotations with Y-X-Y convention.
-    # Sum each Euler component independently.
-    # Return cumulative component tuple.
-    raise NotImplementedError
+
+    # Validate arm
+    if arm not in ['L', 'R']:
+        raise ValueError(f"arm must be 'L' or 'R', got {arm}")
+
+    # Validate data shape
+    data_array = np.asarray(data, dtype=np.float64)
+    if data_array.ndim != 2 or data_array.shape[1] != 18:
+        raise ValueError(
+            'Data must be a 2D array with exactly 18 columns.'
+        )
+
+    # Validate data is not empty
+    if data_array.shape[0] == 0:
+        raise ValueError("Input data cannot be empty")
+
+    # Create absolute rotation matrices for the specified arm
+    matrices = create_rotation_matrices(data_array, arm)
+
+    # Compute relative rotation matrices
+    relative_rotations = compute_incremental_rotation_matrices(matrices)
+
+    # Decompose relative rotations into Euler angles
+    euler_angles = decompose_rotation_matrices_yxy(relative_rotations)
+
+    # Accumulate Euler components independently
+    cumulative_components = accumulate_euler_components(euler_angles)
+
+    return cumulative_components
 
 
-def calculate_cumulative_axis_motion_both_arms(
-    data: npt.NDArray[np.float64],
-) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
-    """Calculate cumulative Y-X-Y component motion for left and right arms.
+# def calculate_cumulative_axis_motion_both_arms(
+#     data: npt.NDArray[np.float64],
+# ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+#     """Calculate cumulative Y-X-Y component motion for left and right arms.
 
-    This convenience wrapper calls the single-arm cumulative function for both
-    arms and returns both results in one structure.
+#     This convenience wrapper calls the single-arm cumulative function for both
+#     arms and returns both results in one structure.
 
-    Args:
-        data (npt.NDArray[np.float64]): Motion capture table loaded via
-            ``np.loadtxt`` with at least 18 columns.
+#     Args:
+#         data (npt.NDArray[np.float64]): Motion capture table loaded via
+#             ``np.loadtxt`` with at least 18 columns.
 
-    Returns:
-        Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
-            ``(left_components, right_components)``, where each inner tuple is
-            the cumulative Y-X-Y component sums in radians.
+#     Returns:
+#         Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+#             ``(left_components, right_components)``, where each inner tuple is
+#             the cumulative Y-X-Y component sums in radians.
 
-    Raises:
-        ValueError: If input validation fails for either arm.
-    """
-    # Call calculate_cumulative_axis_motion for arm='L'.
-    # Call calculate_cumulative_axis_motion for arm='R'.
-    # Return both tuples as (left_components, right_components).
-    raise NotImplementedError
+#     Raises:
+#         ValueError: If input validation fails for either arm.
+#     """
+#     # Call calculate_cumulative_axis_motion for arm='L'.
+#     # Call calculate_cumulative_axis_motion for arm='R'.
+#     # Return both tuples as (left_components, right_components).
+#     raise NotImplementedError
 

@@ -1,14 +1,16 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import pytest
-import numpy.typing as npt
+from unittest.mock import patch
 
 # Use local trace formula in tests; don't import production helper here.
 from utils.kinematics.individual_axes import (
     compute_incremental_rotation_matrices,
     decompose_rotation_matrices_yxy,
     accumulate_euler_components,
+    calculate_cumulative_axis_motion
 )
+
 
 # ---- Global test variables ----
 small_angle = 1e-3
@@ -308,21 +310,6 @@ class TestDecomposeRotationMatricesYXY:
         assert np.allclose(recomposed, M, atol=tolerance)
 
 class TestAccumulateEulerComponents:
-    """
-    - **Reject wrong-dimensions**: Pass arrays that are not 2-D or whose second dimension != 3 (e.g. shapes (3,), (3,2), (3,3,3)) and assert `ValueError`.
-    - **Empty-batch policy (explicit)**: Verify the chosen policy for shape `(0, 3)` — test either (a) it raises `ValueError` or (b) it returns `(0.0, 0.0, 0.0)` (write one test matching the chosen behavior).
-    - **dtype in**: Assert that all data coming in is of type float64.
-    - **Single-row correctness**: Input shape `(1,3)` where the row = [a,b,c]; assert output == (a, b, c).
-    - **Multiple-rows correctness**: Small known matrix (e.g. 3×3) where column-wise sums are known; assert each returned element equals NumPy's `arr[:,0].sum()` etc within tolerance.
-    - **All-zeros**: Input of all zeros returns `(0.0, 0.0, 0.0)`.
-    - **Mixed sign values**: Rows include positive and negative angles; check correct algebraic sum per component.
-    - **Large-magnitude sums**: Inputs with large but finite values to ensure no unexpected overflow and correct sum (use float64 range sanity and assert equality to NumPy sum).
-    - **Return-type and shape**: Confirm return is a `tuple` of length 3 and each element is a native `float` (not a 0-d `np.float64`).
-    - **Immutable input**: Pass an input array and assert it is not modified by the function (compare before/after).
-    - **Precision/tolerance**: For inputs with many small summands, compare output to `np.sum(..., axis=0)` using `pytest.approx` with a tight tolerance to confirm no precision regressions.
-    - **Randomized equivalence**: For several random seeds, assert `accumulate_euler_components(arr)` equals `tuple(np.sum(arr, axis=0).tolist())` (single-purpose property test).
-    - **Edge-ordering check**: Ensure function sums along rows not columns (accidental transpose) — e.g., use an input where row-wise vs column-wise sums differ and assert correctness.
-    """
     # Test rejection of invalid shapes
     @pytest.mark.parametrize(
         "matrix",
@@ -424,3 +411,92 @@ class TestAccumulateEulerComponents:
         before = arr.copy()
         _ = accumulate_euler_components(arr)
         assert np.array_equal(arr, before)
+
+class TestCalculateRotationAngles:
+    # Mock the entire pipeline
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self):
+        with patch("utils.kinematics.individual_axes.create_rotation_matrices",
+                return_value=np.zeros((2, 3, 3))) as create_mock, \
+            patch("utils.kinematics.individual_axes.compute_incremental_rotation_matrices",
+                return_value=np.zeros((1, 3, 3))) as compute_mock, \
+            patch("utils.kinematics.individual_axes.decompose_rotation_matrices_yxy",
+                return_value=np.zeros((1, 3))) as decompose_mock, \
+            patch("utils.kinematics.individual_axes.accumulate_euler_components",
+                return_value=(0, 0, 0)) as accumulate_mock:
+
+            # store mocks for later assertions
+            self.mock_create = create_mock
+            self.mock_compute = compute_mock
+            self.mock_decompose = decompose_mock
+            self.mock_accumulate = accumulate_mock
+
+            yield
+
+    # Should reject invalid arm identifiers with ValueError.
+    @pytest.mark.parametrize(
+        "arm",
+        [
+            pytest.param("X", id="string"),
+            pytest.param(2, id="dtype"),
+            pytest.param(None, id="NoneType")
+        ]
+    )
+    def test_should_reject_invalid_arm_identifiers(self, arm):
+        with pytest.raises(ValueError, match="arm must be 'L' or 'R'"):
+            calculate_cumulative_axis_motion(np.zeros((2, 18)), arm)
+    
+    # Should accept valid arm identifiers
+    @pytest.mark.parametrize("arm", ["L", "R"])
+    def test_should_accept_valid_arm_identifiers(self, arm):
+            calculate_cumulative_axis_motion(np.zeros((2, 18)), arm)
+
+    # Should reject data without exactly 18 columns with ValueError.
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(np.zeros((10, 22), dtype=np.float64), id="22-columns"),
+            pytest.param(np.zeros((10, 5), dtype=np.float64), id="5-columns"),
+            pytest.param(np.zeros((10, 0), dtype=np.float64), id="0-columns"),
+        ]
+    )
+    def test_should_reject_data_with_incorrect_number_of_columns(self, data):
+        with pytest.raises(ValueError, match="Data must be a 2D array with exactly 18 columns."):
+            calculate_cumulative_axis_motion(data, "L")
+
+    # Should reject empty data with ValueError.
+    def test_should_reject_empty_data(self):
+        empty_data = np.zeros((0, 18), dtype=np.float64)
+        with pytest.raises(ValueError, match="Input data cannot be empty"):
+            calculate_cumulative_axis_motion(empty_data, "L")
+
+    # Should create the rotation matrices (once) with the correct arm argument.
+    @pytest.mark.parametrize("arm", ["L", "R"])
+    def test_should_call_create_rotation_matrices_with_correct_arm(self, arm):
+        data = np.zeros((2, 18), dtype=np.float64)
+        calculate_cumulative_axis_motion(data, arm)
+        self.mock_create.assert_called_once_with(data, arm)
+
+    # Should call compute_incremental_rotation_matrices once
+    def test_should_call_compute_incremental_rotation_matrices(self):
+        data = np.zeros((10, 18), dtype=np.float64)
+        calculate_cumulative_axis_motion(data, "L")
+        self.mock_compute.assert_called_once_with(self.mock_create.return_value)
+
+    # Should call decompose_rotation_matrices_yxy once 
+    def test_should_call_decompose_rotation_matrices_yxy(self):
+        data = np.zeros((10, 18), dtype=np.float64)
+        calculate_cumulative_axis_motion(data, "L")
+        self.mock_decompose.assert_called_once_with(self.mock_compute.return_value)
+
+    # Should call accumulate_euler_components once.
+    def test_should_call_accumulate_euler_components(self):
+        data = np.zeros((10, 18), dtype=np.float64)
+        calculate_cumulative_axis_motion(data, "L")
+        self.mock_accumulate.assert_called_once_with(self.mock_decompose.return_value)
+
+    # Should return the output of accumulate_euler_components without any modification.
+    def test_should_return_accumulate_euler_components_output(self):
+        data = np.zeros((10, 18), dtype=np.float64)
+        result = calculate_cumulative_axis_motion(data, "L")
+        assert result == self.mock_accumulate.return_value

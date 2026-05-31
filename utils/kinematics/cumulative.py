@@ -36,9 +36,9 @@ def create_rotation_matrices(data: npt.NDArray[np.float64], arm: str) -> npt.NDA
         raise ValueError(f"arm must be 'L' or 'R', got {arm}")
 
     data_array = np.asarray(data, dtype=np.float64)
-    if data_array.ndim != 2 or data_array.shape[1] < 18:
+    if data_array.ndim != 2 or data_array.shape[1] != 18:
         raise ValueError(
-            'Motion capture data must be a 2D array with at least 18 columns.'
+            'Data must be a 2D array with exactly 18 columns.'
         )
 
     start_index = 0 if arm == 'L' else 9
@@ -102,9 +102,9 @@ def calculate_total_rotation(data: npt.NDArray[np.float64], arm: str) -> float:
         raise ValueError(f"arm must be 'L' or 'R', got {arm}")
 
     data_array = np.asarray(data, dtype=np.float64)
-    if data_array.ndim != 2 or data_array.shape[1] < 18:
+    if data_array.ndim != 2 or data_array.shape[1] != 18:
         raise ValueError(
-            'Motion capture data must be a 2D array with at least 18 columns.'
+            'Data must be a 2D array with exactly 18 columns.'
         )
 
     matrices = create_rotation_matrices(data_array, arm)

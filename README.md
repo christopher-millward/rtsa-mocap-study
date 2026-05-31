@@ -187,8 +187,6 @@ Columns:
 
 ## Next Steps / TODO
 - Calculate amount of motion about each axis
-   - Wrote 2 versions of the decomposition function. One using Scipy.spatial, which saves a lot of code. 
-      - Review errors in the testing suite to see where logic breaks down / what the boundaries are. 
 - Add explanation of individual axis claclulations to README mathematical foundation section
 - Change smallest tested angles to 1e-3. Anything smaller than that is not clinically relevant to a 10Hz sampling of older adults.
 - Segment location binning (identify which region each frame is within (elev + POE))
