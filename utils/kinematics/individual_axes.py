@@ -123,90 +123,6 @@ def decompose_rotation_matrices_yxy(
 
     return np.asarray(euler_angles, dtype=np.float64)
 
-# def decompose_rotation_matrices_yxy(
-#     relative_rotations: npt.NDArray[np.float64],
-# ) -> npt.NDArray[np.float64]:
-#     """Decompose relative rotations into Euler components using Y-X-Y sequence.
-
-#     This function will perform a batch decomposition of each 3x3 relative
-#     rotation matrix into three Euler angles following the Y-X-Y convention,
-#     returning one angle triplet per timestep transition.
-
-#     Args:
-#         relative_rotations (npt.NDArray[np.float64]): Relative rotation matrices
-#             with shape (n_steps, 3, 3).
-
-#     Returns:
-#         npt.NDArray[np.float64]: Euler angles in radians with shape
-#             (n_steps, 3), ordered as (first_Y, X, second_Y).
-
-#     Raises:
-#         ValueError: If the input shape is invalid.
-#     """
-#     # Coerce to ndarray with correct dtype
-#     matrices = np.asarray(relative_rotations, dtype=np.float64)
-
-#     # Validate shape: must be (n_steps, 3, 3)
-#     if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
-#         raise ValueError("relative_rotations must have shape (n_steps, 3, 3)")
-
-#     n_steps = matrices.shape[0]
-#     # Empty batch -> empty result
-#     if n_steps == 0:
-#         raise ValueError("relative_rotations must contain at least one step for decomposition")
-
-#     # Sanity-check: each matrix should be a valid rotation (orthonormal, det ~ 1)
-#     # Use a reasonably strict tolerance for orthonormality and determinant.
-#     rt_r = np.einsum("nij,njk->nik", np.transpose(matrices, (0, 2, 1)), matrices)
-#     identity = np.broadcast_to(np.eye(3, dtype=np.float64), rt_r.shape)
-#     ortho_ok = np.allclose(rt_r, identity, atol=1e-8)
-#     dets = np.linalg.det(matrices)
-#     det_ok = np.allclose(dets, 1.0, atol=1e-6)
-#     if not (ortho_ok and det_ok):
-#         raise ValueError("relative_rotations must be valid rotation matrices")
-
-#     # Extract elements used in the Y-X-Y extraction formulas
-#     r = matrices
-#     # middle angle b: cos(b) = R[1,1]
-#     cb = np.clip(r[:, 1, 1], -1.0, 1.0)
-#     b = np.arccos(cb)
-
-#     # sin(b) magnitude from R[1,0] and R[1,2]
-#     sb = np.hypot(r[:, 1, 0], r[:, 1, 2])
-
-#     # Prepare arrays for a (first Y) and c (second Y)
-#     a = np.empty(n_steps, dtype=np.float64)
-#     c = np.empty(n_steps, dtype=np.float64)
-
-#     # Non-singular case: sb > eps
-#     eps = 1e-12
-#     nonsing = sb > eps
-#     if np.any(nonsing):
-#         # a = atan2(R[0,1], R[2,1]) ; c = atan2(R[1,0], -R[1,2])
-#         a[nonsing] = np.arctan2(r[nonsing, 0, 1], r[nonsing, 2, 1])
-#         c[nonsing] = np.arctan2(r[nonsing, 1, 0], -r[nonsing, 1, 2])
-
-#     # Singular case: sb ~= 0 -> b is approximately 0 or pi
-#     if np.any(~nonsing):
-#         idx = np.where(~nonsing)[0]
-#         for i in idx:
-#             # If cb > 0 -> b ~ 0: Rx(0) -> combined rotation about Y by (a + c)
-#             if cb[i] > 0:
-#                 summed = np.arctan2(r[i, 0, 2], r[i, 0, 0])
-#                 a[i] = summed
-#                 b[i] = 0.0
-#                 c[i] = 0.0
-#             else:
-#                 # b ~ pi: choose a representation that keeps the result deterministic.
-#                 # Use the relation for (a - c) from the matrix elements and set c=0.
-#                 summed = np.arctan2(-r[i, 0, 2], r[i, 0, 0])
-#                 a[i] = summed
-#                 b[i] = np.pi
-#                 c[i] = 0.0
-
-#     angles = np.stack((a, b, c), axis=1)
-#     return angles
-
 
 def accumulate_euler_components(
     euler_angles: npt.NDArray[np.float64],
@@ -229,6 +145,8 @@ def accumulate_euler_components(
         ValueError: If input does not have shape (n_steps, 3).
     """
     # Validate input as a 2D array with exactly three columns.
+    # Validate that the array is not empty.
+    # Validate that the array has no negative numbers.
     # Sum each Euler component independently across rows.
     # Convert summed values to Python floats and return as a 3-tuple.
     raise NotImplementedError

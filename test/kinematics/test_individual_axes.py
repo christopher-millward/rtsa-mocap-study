@@ -7,6 +7,7 @@ import numpy.typing as npt
 from utils.kinematics.individual_axes import (
     compute_incremental_rotation_matrices,
     decompose_rotation_matrices_yxy,
+    accumulate_euler_components,
 )
 
 # ---- Global test variables ----
@@ -21,6 +22,7 @@ def _is_rotation_matrix(R) -> bool:
     return np.allclose(R.T @ R, np.eye(3), atol=tolerance)
 
 
+# ---- Tests ----
 class TestComputeIncrementalRotationMatrices:
     @pytest.mark.parametrize(
         "rotation_matrices",
@@ -229,7 +231,7 @@ class TestDecomposeRotationMatricesYXY:
         assert angles.dtype == np.float64
 
     # Identity matrices should yield zero angles
-    def test_identity_decomposes_to_zeros(self):
+    def test_identity_should_decompose_to_zeros(self):
         matrices = np.stack([np.eye(3, dtype=np.float64) for _ in range(3)])
         angles = decompose_rotation_matrices_yxy(matrices)
         assert np.allclose(angles, np.zeros((3, 3), dtype=np.float64))
@@ -304,3 +306,121 @@ class TestDecomposeRotationMatricesYXY:
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
         assert np.allclose(recomposed, M, atol=tolerance)
+
+class TestAccumulateEulerComponents:
+    """
+    - **Reject wrong-dimensions**: Pass arrays that are not 2-D or whose second dimension != 3 (e.g. shapes (3,), (3,2), (3,3,3)) and assert `ValueError`.
+    - **Empty-batch policy (explicit)**: Verify the chosen policy for shape `(0, 3)` — test either (a) it raises `ValueError` or (b) it returns `(0.0, 0.0, 0.0)` (write one test matching the chosen behavior).
+    - **dtype in**: Assert that all data coming in is of type float64.
+    - **Single-row correctness**: Input shape `(1,3)` where the row = [a,b,c]; assert output == (a, b, c).
+    - **Multiple-rows correctness**: Small known matrix (e.g. 3×3) where column-wise sums are known; assert each returned element equals NumPy's `arr[:,0].sum()` etc within tolerance.
+    - **All-zeros**: Input of all zeros returns `(0.0, 0.0, 0.0)`.
+    - **Mixed sign values**: Rows include positive and negative angles; check correct algebraic sum per component.
+    - **Large-magnitude sums**: Inputs with large but finite values to ensure no unexpected overflow and correct sum (use float64 range sanity and assert equality to NumPy sum).
+    - **Return-type and shape**: Confirm return is a `tuple` of length 3 and each element is a native `float` (not a 0-d `np.float64`).
+    - **Immutable input**: Pass an input array and assert it is not modified by the function (compare before/after).
+    - **Precision/tolerance**: For inputs with many small summands, compare output to `np.sum(..., axis=0)` using `pytest.approx` with a tight tolerance to confirm no precision regressions.
+    - **Randomized equivalence**: For several random seeds, assert `accumulate_euler_components(arr)` equals `tuple(np.sum(arr, axis=0).tolist())` (single-purpose property test).
+    - **Edge-ordering check**: Ensure function sums along rows not columns (accidental transpose) — e.g., use an input where row-wise vs column-wise sums differ and assert correctness.
+    """
+    # Test rejection of invalid shapes
+    @pytest.mark.parametrize(
+        "matrix",
+        [
+            pytest.param(np.ones(3), id="1d-array"),
+            pytest.param(np.zeros((3, 2), dtype=np.float64), id="3x2-array"),
+            pytest.param(np.zeros((3, 3, 3), dtype=np.float64), id="3d-array"),
+        ],
+    )
+    def test_should_reject_wrong_dimensions(self, matrix):
+        with pytest.raises(ValueError):
+            accumulate_euler_components(matrix)
+
+    # Test rejection of empty batches
+    def test_should_reject_empty_batch(self):
+        empty = np.zeros((0, 3), dtype=np.float64)
+        with pytest.raises(ValueError):
+            accumulate_euler_components(empty)
+    
+    # Test rejection of negative values
+    @pytest.mark.parametrize(
+        "matrix",
+        [
+            pytest.param(np.full((1, 3), -1.0, dtype=np.float64), id="all-negative"),
+            pytest.param(np.array([[-1.0, 2.0, 3.0], [1.0, 2.0, 3.0]], dtype=np.float64), id="mixed")
+        ],
+    )   
+    def test_should_reject_negative_numbers(self, matrix):
+        with pytest.raises(ValueError):
+            accumulate_euler_components(matrix)
+
+    # Test coercion to float64.
+    @pytest.mark.parametrize(
+        "matrix",
+        [
+            pytest.param(np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32), id="float32"),
+            pytest.param(np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int64), id="int64"),
+        ],
+    )
+    def test_should_handle_and_coerce_non_float64_inputs(self, matrix):
+        result = accumulate_euler_components(matrix)
+        assert all(isinstance(x, float) for x in result)
+
+    # Test expected outcomes for known inputs
+    # includes single-row, multiple-rows, all-zeros, many small summands, and large-magnitude cases.
+    @pytest.mark.parametrize(
+        ("matrix", "expected"),
+        [
+            pytest.param(
+                np.array([[0.1, 0.2, 0.3]], dtype=np.float64),
+                (0.1, 0.2, 0.3),
+                id="single-row",
+            ),
+            pytest.param(
+                np.array([[0.0, 0.0, 0.0]], dtype=np.float64),
+                (0.0, 0.0, 0.0),
+                id="single-row-zeros",
+            ),
+            pytest.param(
+                np.array(
+                    [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+                    dtype=np.float64,
+                ),
+                (12.0, 15.0, 18.0),
+                id="multiple-rows",
+            ),
+            pytest.param(
+                np.zeros((5, 3), dtype=np.float64),
+                (0.0, 0.0, 0.0),
+                id="all-zeros",
+            ),
+            pytest.param(
+                np.full((10000, 3), small_angle, dtype=np.float64),
+                (small_angle * 10000, small_angle * 10000, small_angle * 10000),
+                id="many-small-summands",
+            ),
+            pytest.param(
+                np.array([[1e200, 1e200, 1e200], [1e200, 1e200, 1e200]], dtype=np.float64),
+                (2e200, 2e200, 2e200),
+                id="large-magnitude",
+            ),
+        ],
+    )
+    def test_should_return_expected_component_sums(self, matrix, expected):
+        result = accumulate_euler_components(matrix)
+        assert result == pytest.approx(expected, rel=0, abs=tolerance)
+
+    # Test for correct output type and shape.
+    def test_should_return_correct_type_and_shape(self):
+        matrix = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], dtype=np.float64)
+        result = accumulate_euler_components(matrix)
+        assert isinstance(result, tuple)
+        assert len(result) == 3
+        assert all(isinstance(x, float) for x in result)
+
+    # Test that the input array is not modified (immutability).
+    def test_should_not_mutate_input(self):
+        arr = np.array([[1.0, 2.0, 3.0]], dtype=np.float64)
+        before = arr.copy()
+        _ = accumulate_euler_components(arr)
+        assert np.array_equal(arr, before)
