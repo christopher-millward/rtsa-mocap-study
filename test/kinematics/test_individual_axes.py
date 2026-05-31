@@ -16,54 +16,6 @@ singularity_tolerance = 1e-7
 
 
 # ---- Helper Functions ----
-def _rotation_matrix_x(angle: float) -> npt.NDArray[np.float64]:
-    """Isolated rotation about the x-axis."""
-    return np.array(
-        [
-            [1.0, 0.0, 0.0],
-            [0.0, np.cos(angle), -np.sin(angle)],
-            [0.0, np.sin(angle), np.cos(angle)],
-        ],
-        dtype=np.float64,
-    )
-
-def _rotation_matrix_y(angle: float) -> npt.NDArray[np.float64]:
-    """Isolated rotation about the y-axis."""
-    return np.array(
-        [
-            [np.cos(angle), 0.0, np.sin(angle)],
-            [0.0, 1.0, 0.0],
-            [-np.sin(angle), 0.0, np.cos(angle)],
-        ],
-        dtype=np.float64,
-    )
-
-def _rotation_matrix_z(angle: float) -> npt.NDArray[np.float64]:
-    """Isolated rotation about the z-axis."""
-    return np.array(
-        [
-            [np.cos(angle), -np.sin(angle), 0.0],
-            [np.sin(angle), np.cos(angle), 0.0],
-            [0.0, 0.0, 1.0],
-        ],
-        dtype=np.float64,
-    )
-
-def _rotation_matrix_xyz(
-    x_angle: float,
-    y_angle: float,
-    z_angle: float,
-) -> npt.NDArray[np.float64]:
-    """
-    Intrinsic XYZ rotation composition.
-    """
-
-    rx = _rotation_matrix_x(x_angle)
-    ry = _rotation_matrix_y(y_angle)
-    rz = _rotation_matrix_z(z_angle)
-
-    return rz @ ry @ rx
-
 def _is_rotation_matrix(R) -> bool:
     """Sanity check orthonormality."""
     return np.allclose(R.T @ R, np.eye(3), atol=tolerance)
@@ -121,18 +73,18 @@ class TestComputeIncrementalRotationMatrices:
 
     # Test that the function correctly computes the relative rotation.
     @pytest.mark.parametrize(
-        ("rotation_builder", "angle"),
+        ("rotation_builder", "sequence", "angle"),
         [
-            pytest.param(_rotation_matrix_x, np.pi / 6, id="x-axis"),
-            pytest.param(_rotation_matrix_y, np.pi / 4, id="y-axis"),
-            pytest.param(_rotation_matrix_z, np.pi / 3, id="z-axis"),
-            pytest.param(lambda a: _rotation_matrix_xyz(a, a, a), 0.2, id="combined-xyz"),
+            pytest.param(R.from_euler, "X", np.pi / 6, id="x-axis"),
+            pytest.param(R.from_euler, "Y", np.pi / 4, id="y-axis"),
+            pytest.param(R.from_euler, "Z", np.pi / 3, id="z-axis"),
+            pytest.param(R.from_euler, "XYZ", [0.2, 0.2, 0.2], id="combined-xyz"),
         ],
     )
-    def test_should_return_expected_relative_matrix(self, rotation_builder, angle):
+    def test_should_return_expected_relative_matrix(self, rotation_builder, sequence, angle):
         """For a two-frame sequence, the returned delta should equal R_current @ R_previous.T."""
         R0 = np.eye(3, dtype=np.float64)
-        R1 = rotation_builder(angle)
+        R1 = rotation_builder(sequence, angle).as_matrix()
         frames = np.stack([R0, R1])
         deltas = compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (1, 3, 3)
@@ -141,17 +93,17 @@ class TestComputeIncrementalRotationMatrices:
 
     # Test that the cumulative product of deltas reconstructs the original sequence.
     @pytest.mark.parametrize(
-        ("rotation_builder", "angle", "n_steps"),
+        ("rotation_builder", "sequence","angle", "n_steps"),
         [
-            pytest.param(_rotation_matrix_x, np.pi / 12, 4, id="small-x"),
-            pytest.param(_rotation_matrix_y, np.pi / 8, 6, id="small-y"),
-            pytest.param(_rotation_matrix_z, np.pi / 10, 5, id="small-z"),
-            pytest.param(lambda a: _rotation_matrix_xyz(a, a, a), 0.15, 5, id="small-xyz"),
+            pytest.param(R.from_euler, "X", np.pi/12, 4, id="small-x"),
+            pytest.param(R.from_euler, "Y", np.pi/12, 4, id="small-y"),
+            pytest.param(R.from_euler, "Z", np.pi/12, 4, id="small-z"),
+            pytest.param(R.from_euler, "YXY", [0.15, 0.15, 0.15], 4, id="small-yxy"),
         ],
     )
-    def test_should_reconstruct_to_absolute_orientation(self, rotation_builder, angle, n_steps):
+    def test_should_reconstruct_to_absolute_orientation(self, rotation_builder, sequence, angle, n_steps):
         """The cumulative product of deltas should reproduce the original sequence."""
-        D = rotation_builder(angle)
+        D = rotation_builder(sequence, angle).as_matrix()
         frames = [np.eye(3, dtype=np.float64)]
         for _ in range(n_steps - 1):
             frames.append(frames[-1] @ D)
@@ -169,18 +121,18 @@ class TestComputeIncrementalRotationMatrices:
 
     # Test that each delta is a valid rotation matrix (orthonormal with determinant 1).
     @pytest.mark.parametrize(
-        ("rotation_builder", "angle"),
+        ("rotation_builder", "sequence", "angle"),
         [
-            pytest.param(_rotation_matrix_x, np.pi / 8, id="x-axis"),
-            pytest.param(_rotation_matrix_y, np.pi / 7, id="y-axis"),
-            pytest.param(_rotation_matrix_z, np.pi / 9, id="z-axis"),
-            pytest.param(lambda a: _rotation_matrix_xyz(a, 2 * a, 3 * a), 0.1, id="combined"),
+            pytest.param(R.from_euler, "X",  np.pi / 8, id="x-axis"),
+            pytest.param(R.from_euler, "Y", np.pi/ 7, id="y-axis"),
+            pytest.param(R.from_euler, "Z", np.pi/ 9, id="z-axis"),
+            pytest.param(R.from_euler, "YXY", [0.1, 0.2, 0.3], id="combined"),
         ],
     )
-    def test_should_return_valid_rotation_matrices(self, rotation_builder, angle):
+    def test_should_return_valid_rotation_matrices(self, rotation_builder, sequence, angle):
         """Each relative matrix should still be a valid rotation matrix."""
         n_steps = 5
-        D = rotation_builder(angle)
+        D = rotation_builder(sequence, angle).as_matrix()
         frames = [np.eye(3, dtype=np.float64)]
         
         for _ in range(n_steps - 1):
@@ -193,22 +145,22 @@ class TestComputeIncrementalRotationMatrices:
 
     # Test that the function handles small and large rotations appropriately.
     @pytest.mark.parametrize(
-        ("rotation_builder", "angle"),
+        ("rotation_builder", "sequence", "angle"),
         [
-            pytest.param(_rotation_matrix_x, 1e-3, id="small-x"),
-            pytest.param(_rotation_matrix_y, 2e-3, id="small-y"),
-            pytest.param(_rotation_matrix_z, 5e-3, id="small-z"),
-            pytest.param(lambda a: _rotation_matrix_xyz(a, a, a), 1e-3, id="small-xyz"),
-            pytest.param(_rotation_matrix_x, np.pi / 2, id="large-x"),
-            pytest.param(_rotation_matrix_y, np.pi * 0.75, id="large-y"),
-            pytest.param(_rotation_matrix_z, np.pi * 0.9, id="large-z"),
-            pytest.param(lambda a: _rotation_matrix_xyz(a, a, a), np.pi / 6, id="large-xyz"),
-        ],
+            pytest.param(R.from_euler, "X",  small_angle, id="small-x"),
+            pytest.param(R.from_euler, "Y", small_angle, id="small-y"),
+            pytest.param(R.from_euler, "Z", small_angle, id="small-z"),
+            pytest.param(R.from_euler, "YXY", [small_angle, small_angle, small_angle], id="small-yxy"),
+            pytest.param(R.from_euler, "X",  np.pi / 2, id="large-x"),
+            pytest.param(R.from_euler, "Y", np.pi * 0.75, id="large-y"),
+            pytest.param(R.from_euler, "Z", np.pi * 0.9, id="large-z"),
+            pytest.param(R.from_euler, "YXY", [np.pi / 6, np.pi / 6, np.pi / 6], id="large-yxy"),
+        ]
     )
-    def test_should_handle_small_and_large_rotations(self, rotation_builder, angle):
+    def test_should_handle_small_and_large_rotations(self, rotation_builder, sequence, angle):
         """Small absolute changes should yield small deltas, and larger changes should yield larger deltas."""
         R0 = np.eye(3, dtype=np.float64)
-        R1 = rotation_builder(angle)
+        R1 = rotation_builder(sequence, angle).as_matrix()
         deltas = compute_incremental_rotation_matrices(np.stack([R0, R1]))
         # Compute rotation angle from a rotation matrix using the trace formula
         # theta = arccos((trace(R) - 1) / 2)
@@ -223,7 +175,7 @@ class TestComputeIncrementalRotationMatrices:
     @pytest.mark.parametrize("n_frames", [2, 3, 8])
     def test_should_return_expected_shape_and_dtype(self, n_frames):
         """The function should return (n_frames - 1, 3, 3) float64 matrices."""
-        D = _rotation_matrix_x(0.1)
+        D = R.from_euler("X", 0.1).as_matrix()
         frames = [np.eye(3, dtype=np.float64)]
         for _ in range(n_frames - 1):
             frames.append(frames[-1] @ D)
