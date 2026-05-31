@@ -187,6 +187,9 @@ Columns:
 
 ## Next Steps / TODO
 - Calculate amount of motion about each axis
+   - Finish the "both arms" function. 
+- Figure out the orthonormality issue in the data. 
+- Add orthonormality check to cumulative motion algorithm.
 - Add explanation of individual axis claclulations to README mathematical foundation section
 - Change smallest tested angles to 1e-3. Anything smaller than that is not clinically relevant to a 10Hz sampling of older adults.
 - Segment location binning (identify which region each frame is within (elev + POE))
