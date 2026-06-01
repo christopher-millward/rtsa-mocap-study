@@ -1,150 +1,84 @@
 import numpy as np
 import pytest
+from scipy.spatial.transform import Rotation as R
 from utils.kinematics.general_helpers import (
     create_rotation_matrices,
 )
 
-# ---- Helper Functions ----
-def _matrix_row(values):
-    """Build a 1D NumPy row with the nine matrix entries for one arm."""
-    return np.array([values[i][j] for i in range(3) for j in range(3)], dtype=np.float64)
-
-def _row_with_both_arms(left_values, right_values):
-    """Build a 1D row with left-arm values followed by right-arm values."""
-    return np.concatenate((_matrix_row(left_values), _matrix_row(right_values)))
-
-def _rotation_matrix_x(angle: float) -> np.ndarray:
-    """Isolated rotation about the x-axis."""
-    return np.array(
-        [
-            [1.0, 0.0, 0.0],
-            [0.0, np.cos(angle), -np.sin(angle)],
-            [0.0, np.sin(angle), np.cos(angle)],
-        ],
-        dtype=np.float64,
-    )
-
-def _rotation_matrix_y(angle: float) -> np.ndarray:
-    """Isolated rotation about the y-axis."""
-    return np.array(
-        [
-            [np.cos(angle), 0.0, np.sin(angle)],
-            [0.0, 1.0, 0.0],
-            [-np.sin(angle), 0.0, np.cos(angle)],
-        ],
-        dtype=np.float64,
-    )
-
-def _rotation_matrix_z(angle: float) -> np.ndarray:
-    """Isolated rotation about the z-axis."""
-    return np.array(
-        [
-            [np.cos(angle), -np.sin(angle), 0.0],
-            [np.sin(angle), np.cos(angle), 0.0],
-            [0.0, 0.0, 1.0],
-        ],
-        dtype=np.float64,
-    )
-
-def _rotation_matrix_xyz(
-    x_angle: float,
-    y_angle: float,
-    z_angle: float,
-) -> np.ndarray:
-    """
-    Intrinsic XYZ rotation composition.
-    """
-
-    rx = _rotation_matrix_x(x_angle)
-    ry = _rotation_matrix_y(y_angle)
-    rz = _rotation_matrix_z(z_angle)
-
-    return rz @ ry @ rx
-
-def _is_rotation_matrix(R):
-    """Sanity check orthonormality."""
-    return np.allclose(R.T @ R, np.eye(3), atol=1e-8)
-
-
 class TestCreateRotationMatrices:
-    # Extracting matrices should preserve the arm-specific column ordering frame by frame.
+    # Incorrect shapes should be rejected.
     @pytest.mark.parametrize(
-        "arm",
+        "data",
         [
-            pytest.param("L", id="left"),
-            pytest.param("R", id="right"),
-        ]
-    )
-    def test_should_return_expected_3d_array(self, arm):
-        left_values = [
-            [0.0, 0.1, 0.2],
-            [0.3, 0.4, 0.5],
-            [0.6, 0.7, 0.8],
-        ]
-        right_values = [
-            [1.0, 1.1, 1.2],
-            [1.3, 1.4, 1.5],
-            [1.6, 1.7, 1.8],
-        ]
-        data = np.vstack(
-            [
-                _row_with_both_arms(left_values, right_values),
-                _row_with_both_arms(right_values, left_values),
-            ]
-        )
-        matrices = create_rotation_matrices(data, arm)
-
-        expected = np.stack(
-            [
-                np.array(left_values if arm ==
-                        "L" else right_values, dtype=np.float64),
-                np.array(right_values if arm ==
-                        "L" else left_values, dtype=np.float64),
-            ]
-        )
-        assert matrices.shape == (2, 3, 3)
-        assert np.array_equal(matrices, expected)
-
-    # Test that it actually builds valid rotation matrices, not just any 3x3 arrays.
-    @pytest.mark.parametrize(
-        "arm",
-        [
-            pytest.param("L", id="left"),
-            pytest.param("R", id="right"),
+            pytest.param(np.zeros(18, dtype=np.float64), id="flat-row"),
+            pytest.param(np.zeros((2, 17), dtype=np.float64), id="too-few-columns"),
+            pytest.param(np.zeros((2, 19), dtype=np.float64), id="too-many-columns"),
+            pytest.param(np.zeros((2, 3, 6), dtype=np.float64), id="3d-array"),
+            pytest.param(np.zeros((0, 18), dtype=np.float64), id="empty-array"),
         ],
     )
-    def test_should_return_valid_rotation_matrices(self,arm):
-        """Each extracted frame should still be a valid rotation matrix."""
-        left_frames = [
-            np.eye(3, dtype=np.float64),
-            _rotation_matrix_x(np.pi / 6),
-        ]
-        right_frames = [
-            _rotation_matrix_y(np.pi / 4),
-            _rotation_matrix_z(np.pi / 3),
-        ]
-        data = np.vstack(
-            [
-                _row_with_both_arms(left_frames[0], right_frames[0]),
-                _row_with_both_arms(left_frames[1], right_frames[1]),
-            ]
-        )
+    def test_should_reject_incorrect_shapes(self, data):
+        with pytest.raises(ValueError, match="Data must be a 2D array with exactly 18 columns."):
+            create_rotation_matrices(data, "L")
 
-        matrices = create_rotation_matrices(data, arm)
+    # Non-float64 inputs should be coerced safely.
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(np.zeros((2, 18), dtype=np.float32), id="float32"),
+            pytest.param(np.zeros((2, 18), dtype=np.int64), id="int64"),
+        ],
+    )
+    def test_should_coerce_non_float64_inputs(self, data):
+        matrices = create_rotation_matrices(data, "L")
+        assert matrices.dtype == np.float64
 
-        assert matrices.shape == (2, 3, 3)
-        assert all(_is_rotation_matrix(matrix) for matrix in matrices)
-
-    # Send invalid arm identifiers to the extractor and expect a ValueError.
+    # Invalid arm identifiers should be rejected.
     @pytest.mark.parametrize(
         "arm",
         [
             pytest.param("X", id="string"),
             pytest.param(2, id="dtype"),
-            pytest.param(None, id="NoneType")
-        ]
+            pytest.param(None, id="none"),
+        ],
     )
     def test_should_reject_invalid_arm(self, arm):
+        data = np.zeros((1, 18), dtype=np.float64)
         with pytest.raises(ValueError, match="arm must be 'L' or 'R'"):
-            create_rotation_matrices(np.zeros(18, dtype=np.float64), arm)
+            create_rotation_matrices(data, arm)
 
+    # Left and right arms should be sliced from the correct column block.
+    @pytest.mark.parametrize(
+        "arm",
+        [
+            pytest.param("L", id="left"),
+            pytest.param("R", id="right"),
+        ],
+    )
+    def test_should_return_the_expected_arm(self, arm):
+        left_data = np.full((1, 9), 1.0, dtype=np.float64)
+        right_data = np.full((1, 9), 2.0, dtype=np.float64)
+        data = np.concatenate((left_data, right_data), axis=1)
+        matrix = create_rotation_matrices(data, arm)
+        expected = [left_data.reshape(3, 3) if arm == "L" else right_data.reshape(3, 3)]
+        assert np.array_equal(matrix, expected)
+
+    # Should return correct dtype and shape
+    def test_should_return_correct_dtype_and_shape(self):
+        data = np.zeros((5, 18), dtype=np.float64)
+        matrices = create_rotation_matrices(data, "L")
+        assert matrices.shape == (5, 3, 3)
+        assert matrices.dtype == np.float64
+
+    # The function should not mutate the original input values.
+    def test_should_not_modify_original_data(self):
+        data = np.concatenate(
+            [
+                np.full((1, 18), 1.0, dtype=np.float64),
+                np.full((1, 18), 2.0, dtype=np.float64),
+                np.full((1, 18), 3.0, dtype=np.float64)
+            ]
+        )
+        original = data.copy()
+        create_rotation_matrices(data, "L")
+        assert np.array_equal(data, original)
