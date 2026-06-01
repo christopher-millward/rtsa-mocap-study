@@ -54,14 +54,20 @@ def create_rotation_matrices(data: npt.NDArray[np.float64], arm: str) -> npt.NDA
         ValueError: If arm is not 'L' or 'R'.
         ValueError: If the row does not contain enough values.
     """
+    # Validate arm identifier
     if arm not in ['L', 'R']:
         raise ValueError(f"arm must be 'L' or 'R', got {arm}")
 
+    # validate data shape
     data_array = np.asarray(data, dtype=np.float64)
     if data_array.ndim != 2 or data_array.shape[1] != 18:
         raise ValueError(
             'Data must be a 2D array with exactly 18 columns.'
         )
+
+    # reject empty data
+    if data_array.shape[0] == 0:
+        raise ValueError("Data must be a 2D array with exactly 18 columns.")
 
     start_index = 0 if arm == 'L' else 9
     return data_array[:, start_index:start_index + 9].reshape(-1, 3, 3)
