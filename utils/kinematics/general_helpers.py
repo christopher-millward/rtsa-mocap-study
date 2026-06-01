@@ -52,7 +52,7 @@ def create_rotation_matrices(data: npt.NDArray[np.float64], arm: str) -> npt.NDA
     stack of rotation matrices.
 
     Args:
-        data (npt.NDArray[np.float64]): A 2D array with at least 18 columns,
+        data (npt.NDArray[np.float64]): A 2D array with exactly 18 columns,
             where columns 0-8 contain left arm rotation data and columns
             9-17 contain right arm rotation data.
         arm (str): Arm identifier, either 'L' (left) or 'R' (right).
