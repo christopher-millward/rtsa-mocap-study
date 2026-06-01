@@ -186,9 +186,10 @@ Columns:
 ---
 
 ## Next Steps / TODO
+- In the middle of figuring out this orthonormality issue. Essentially, we're getting massive deviations from orthonormality in the rot. matrices. Not a single rotation matrix is orthonormal. My tests are showing that they're built correctly. I'm really not sure what's going wrong. Going to email Dan and ask for the raw quaternions to see if those are orthonormal.
+
 - Calculate amount of motion about each axis
    - Finish the "both arms" function. 
-- Figure out the orthonormality issue in the data. 
 - Add orthonormality check to cumulative motion algorithm.
 - Add explanation of individual axis claclulations to README mathematical foundation section
 - Change smallest tested angles to 1e-3. Anything smaller than that is not clinically relevant to a 10Hz sampling of older adults.
