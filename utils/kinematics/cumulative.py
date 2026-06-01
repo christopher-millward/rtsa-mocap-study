@@ -8,41 +8,7 @@ from typing import Tuple
 
 import numpy as np
 import numpy.typing as npt
-
-
-def create_rotation_matrices(data: npt.NDArray[np.float64], arm: str) -> npt.NDArray[np.float64]:
-    """Extract a batch of 3x3 rotation matrices for a specified arm.
-
-    The function operates on a 2D motion-capture array and slices the nine
-    rotation values for the requested arm from every frame. Those nine values
-    are reshaped into a 3x3 matrix for each frame, producing a vectorized
-    stack of rotation matrices.
-
-    Args:
-        data (npt.NDArray[np.float64]): A 2D array with at least 18 columns,
-            where columns 0-8 contain left arm rotation data and columns
-            9-17 contain right arm rotation data.
-        arm (str): Arm identifier, either 'L' (left) or 'R' (right).
-
-    Returns:
-        npt.NDArray[np.float64]: An array of 3x3 rotation matrices with shape
-            (n_frames, 3, 3).
-
-    Raises:
-        ValueError: If arm is not 'L' or 'R'.
-        ValueError: If the row does not contain enough values.
-    """
-    if arm not in ['L', 'R']:
-        raise ValueError(f"arm must be 'L' or 'R', got {arm}")
-
-    data_array = np.asarray(data, dtype=np.float64)
-    if data_array.ndim != 2 or data_array.shape[1] != 18:
-        raise ValueError(
-            'Data must be a 2D array with exactly 18 columns.'
-        )
-
-    start_index = 0 if arm == 'L' else 9
-    return data_array[:, start_index:start_index + 9].reshape(-1, 3, 3)
+from utils.kinematics.general_helpers import create_rotation_matrices
 
 
 def calculate_rotation_angles(rotation_matrices: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:

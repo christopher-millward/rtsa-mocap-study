@@ -8,33 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import Tuple
 from scipy.spatial.transform import Rotation as R
-from utils.kinematics.cumulative import create_rotation_matrices
-
-
-def _validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
-    """Validate that a batch of 3x3 matrices are proper rotation matrices.
-
-    The check is fully vectorized over the batch dimension. It verifies that
-    each matrix is orthonormal by confirming ``R.T @ R == I`` for every matrix
-    in the batch, and it rejects improper rotations by requiring each
-    determinant to be approximately ``+1``.
-
-    Args:
-        matrices (npt.NDArray[np.float64]): Array of candidate rotation
-            matrices with shape ``(n_steps, 3, 3)``.
-
-    Raises:
-        ValueError: If the input is not a batch of 3x3 matrices, if any matrix
-            is not orthonormal, or if any determinant differs from ``+1``.
-    """
-    gram = np.matmul(np.transpose(matrices, (0, 2, 1)), matrices)
-    identity = np.broadcast_to(np.eye(3, dtype=np.float64), gram.shape)
-    if not np.allclose(gram, identity, atol=1e-8):
-        raise ValueError("relative_rotations must be orthonormal rotation matrices")
-
-    dets = np.linalg.det(matrices)
-    if not np.allclose(dets, 1.0, atol=1e-6):
-        raise ValueError("relative_rotations must have determinant 1")
+from utils.kinematics.general_helpers import validate_orthonorm_and_det, create_rotation_matrices
 
 
 def compute_incremental_rotation_matrices(
@@ -119,7 +93,7 @@ def decompose_rotation_matrices_yxy(
         raise ValueError("relative_rotations must contain at least one matrix")
 
     #Validate orthonormality and determinant of each matrix
-    _validate_orthonorm_and_det(matrices)
+    validate_orthonorm_and_det(matrices)
 
     euler_angles = R.from_matrix(matrices).as_euler(
         seq="YXY",  # Must be uppercase for intrinsic rotations in scipy
