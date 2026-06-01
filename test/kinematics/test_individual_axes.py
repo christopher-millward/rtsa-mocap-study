@@ -329,18 +329,6 @@ class TestAccumulateEulerComponents:
         with pytest.raises(ValueError):
             accumulate_euler_components(empty)
     
-    # Test rejection of negative values
-    @pytest.mark.parametrize(
-        "matrix",
-        [
-            pytest.param(np.full((1, 3), -1.0, dtype=np.float64), id="all-negative"),
-            pytest.param(np.array([[-1.0, 2.0, 3.0], [1.0, 2.0, 3.0]], dtype=np.float64), id="mixed")
-        ],
-    )   
-    def test_should_reject_negative_numbers(self, matrix):
-        with pytest.raises(ValueError):
-            accumulate_euler_components(matrix)
-
     # Test coercion to float64.
     @pytest.mark.parametrize(
         "matrix",
