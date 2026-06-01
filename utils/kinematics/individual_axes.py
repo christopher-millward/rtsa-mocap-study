@@ -92,8 +92,8 @@ def decompose_rotation_matrices_yxy(
     if matrices.shape[0] == 0:
         raise ValueError("relative_rotations must contain at least one matrix")
 
-    #Validate orthonormality and determinant of each matrix
-    # validate_orthonorm_and_det(matrices)
+    # Validate orthonormality and determinant of each matrix
+    validate_orthonorm_and_det(matrices)
 
     euler_angles = R.from_matrix(matrices).as_euler(
         seq="YXY",  # Must be uppercase for intrinsic rotations in scipy
