@@ -204,6 +204,23 @@ class TestCreateRotationMatrices:
         result = create_rotation_matrices(data, side)
         assert np.array_equal(result[0], expected)
 
+    @pytest.mark.parametrize(
+        ("side", "expected"),
+        [
+            pytest.param("L", np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64), id="left"),
+            pytest.param("R", np.array([[10, 11, 12], [13, 14, 15], [16, 17, 18]], dtype=np.float64), id="right"),
+        ],
+    )
+    # Should built the matrix correctly for multiple frames
+    def test_should_build_correct_matrices_for_multiple_frames(self, side, expected):
+        """Ensure the function can handle multiple frames and builds the correct matrices."""
+        n_frames = 5
+        single_frame = np.arange(1, 19, dtype=np.float64).reshape(1, 18)
+        data = np.tile(single_frame, (n_frames, 1))
+        result = create_rotation_matrices(data, side)
+        for i in range(n_frames):
+            assert np.array_equal(result[i], expected)
+
     # Should return correct dtype and shape
     def test_should_return_correct_dtype_and_shape(self):
         data = np.zeros((5, 18), dtype=np.float64)
