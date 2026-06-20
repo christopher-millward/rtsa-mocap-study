@@ -186,8 +186,8 @@ Columns:
 ---
 
 ## Next Steps / TODO
-- In the middle of figuring out this orthonormality issue. Essentially, we're getting massive deviations from orthonormality in the rot. matrices. Not a single rotation matrix is orthonormal. My tests are showing that they're built correctly. I'm really not sure what's going wrong. Going to email Dan and ask for the raw quaternions to see if those are orthonormal.
-
+- Figure out how to handle non-orthonormal data.
+- Refactor the create_rotation_matrices function to accept "left" and "right" instead of "L" and "R" (or just find some way to fix this mismatch).
 - Calculate amount of motion about each axis
    - Finish the "both arms" function. 
 - Add orthonormality check to cumulative motion algorithm.
