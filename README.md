@@ -116,7 +116,7 @@ New Analysis/
 
 ### Requirements
 
-This project was built using python version 3.12.7. The virtual environment was managed using Anaconda + requirements.txt. The below instructions assume you have python v 3.12 or later installed as well as anaconda.
+This project was built using python version 3.12.13. The virtual environment was managed using Anaconda + requirements.txt. The below instructions assume you have python v 3.12 or later installed as well as anaconda.
 
 ### Setup
 
