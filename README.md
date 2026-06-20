@@ -215,7 +215,7 @@ Columns:
 
 - Figure out how to handle non-orthonormal data.
 - Refactor the create_rotation_matrices function to accept "left" and "right" instead of "L" and "R" (or just find some way to fix this mismatch).
-- Set up and document venv for this repo.
+- Clean up README doc.
 - Calculate amount of motion about each axis
   - Finish the "both arms" function.
 - Add orthonormality check to cumulative motion algorithm.
