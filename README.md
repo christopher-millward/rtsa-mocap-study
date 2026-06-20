@@ -212,8 +212,8 @@ Columns:
 ---
 
 ## Next Steps / TODO
-
 - Figure out how to handle non-orthonormal data.
+- Perform sensor drift audit.
 - Refactor the create_rotation_matrices function to accept "left" and "right" instead of "L" and "R" (or just find some way to fix this mismatch).
 - Clean up README doc.
 - Calculate amount of motion about each axis
