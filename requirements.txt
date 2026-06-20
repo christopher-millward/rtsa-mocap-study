@@ -1,0 +1,6 @@
+pytest==9.0.3
+pandas==3.0.3
+numpy==1.26.4
+scipy==1.13.1
+seaborn==0.13.2
+matplotlib==3.9.2

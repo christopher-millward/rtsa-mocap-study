@@ -7,7 +7,7 @@
 
 This project analyzes three-dimensional shoulder kinematics data from a motion capture study. The goal is to quantify total rotational motion in the shoulders of participants with Reverse Total Shoulder Arthroplasty (RTSA) implants.
 
-The analysis reads raw rotation matrices (3x3) and computes accumulated rotation angles, in radians, using the [trace formula](https://en.wikipedia.org/wiki/Trace_\(linear_algebra\)).
+The analysis reads raw rotation matrices (3x3) and computes accumulated rotation angles, in radians, using the [trace formula](<https://en.wikipedia.org/wiki/Trace_(linear_algebra)>).
 
 ---
 
@@ -22,6 +22,7 @@ The rotation angle **θ** for a given rotation matrix **R** is calculated from t
 $$\theta = \arccos\left(\frac{\text{trace}(R) - 1}{2}\right)$$
 
 **Key properties:**
+
 - The result is always in the range [0, π] radians
 - Trace values are clamped to [−1, 3] before arccos to handle numerical precision issues
 - Total rotation is the sum of all rotation angles across all frames
@@ -29,6 +30,7 @@ $$\theta = \arccos\left(\frac{\text{trace}(R) - 1}{2}\right)$$
 ### Input Data Format
 
 Each motion capture file contains one row per frame with 18 numeric columns:
+
 - Column 0: Datetime stamp
 - Columns 1–9: Left arm rotation matrix elements (row-major: L00, L01, ..., L22)
 - Columns 10–18: Right arm rotation matrix elements (row-major: R00, R01, ..., R22)
@@ -40,6 +42,7 @@ Each motion capture file contains one row per frame with 18 numeric columns:
 ```
 New Analysis/
 ├── README.md                          # This file
+├── requirements.txt                   # Environment dependencies
 ├── pytest.ini                         # pytest configuration
 ├── dev.ipynb                          # Jupyter notebook for development and testing
 ├── main.py                            # (placeholder) Main analysis script
@@ -74,11 +77,13 @@ New Analysis/
 ### `utils/data_loading.py`
 
 **`load_participant_details(filepath)`**
+
 - Reads an Excel file containing participant metadata.
 - Returns a list of `ParticipantDetails` dictionaries.
 - Validates that each participant has exactly one dominant-arm flag and no RTSA/TSA overlap on the same arm.
 
 **`load_motion_capture_data(filename, data_dir='./raw_data')`**
+
 - Loads motion capture data from a tab-delimited file (as a NumPy array).
 - Expects 18 columns (left and right arm rotation matrices).
 - Skips the first row (header).
@@ -86,18 +91,22 @@ New Analysis/
 ### `utils/kinematics.py`
 
 **`extract_rotation_matrix(row, arm)`**
+
 - Extracts a 3×3 rotation matrix from a 1D row of motion data.
 - `arm` is either `'L'` or `'R'`.
 
 **`calculate_rotation_angle(rotation_matrix)`**
+
 - Computes the rotation angle in radians for a single 3×3 matrix using the trace formula.
 
 **`calculate_total_rotation(data, arm)`**
+
 - Vectorized computation of total rotation for an arm across all frames.
 - `data` is a 2D NumPy array (n_frames × 18).
 - Returns the sum of all rotation angles in radians.
 
 **`calculate_arm_rotations(data)`**
+
 - High-level function that computes total rotation for both arms.
 - Returns `(left_rotation, right_rotation)` in radians.
 
@@ -105,17 +114,32 @@ New Analysis/
 
 ## Getting Started
 
+### Requirements
+
+This project was built using python version 3.12.7. The virtual environment was managed using Anaconda + requirements.txt. The below instructions assume you have python v 3.12 or later installed as well as anaconda.
+
 ### Setup
 
-1. **Install dependencies:**
+1. **Build environment**<br>
+   Once you're in the project folder, create a virtual environment (using Conda or equivalent).
+
    ```bash
-   pip install pandas numpy openpyxl pytest
+   conda create -n rtsa_mocap python=3.12
    ```
 
-2. **Run tests to verify installation:**
+2. **Activate the environment**
    ```bash
-   pytest
+   conda activate rtsa_mocap
    ```
+3. **Install dependencies:**<br>
+   Once activated, install the dependencies
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run your code**
+   Now that the environment is set up and you're inside of it, you can run what ever scripts you wish.
 
 ### Usage Example
 
@@ -159,6 +183,7 @@ pytest -v
 ```
 
 The test suite includes:
+
 - **Unit tests for data loading:** Participant metadata extraction, file I/O, validation rules.
 - **Unit tests for kinematics:** Rotation matrix extraction, angle calculation, accumulation across frames.
 
@@ -171,6 +196,7 @@ Tests use mocked I/O to keep them fast and deterministic (no dependency on actua
 ### Participant Details (Excel)
 
 Columns:
+
 - `fname`: Participant filename identifier
 - `RTSA-R`, `RTSA-L`: Binary flags (1 = yes, 0 = no) for Reverse TSA on right/left
 - `TSA-R`, `TSA-L`: Binary flags for total TSA
@@ -186,16 +212,17 @@ Columns:
 ---
 
 ## Next Steps / TODO
+
 - Figure out how to handle non-orthonormal data.
 - Refactor the create_rotation_matrices function to accept "left" and "right" instead of "L" and "R" (or just find some way to fix this mismatch).
 - Set up and document venv for this repo.
 - Calculate amount of motion about each axis
-   - Finish the "both arms" function. 
+  - Finish the "both arms" function.
 - Add orthonormality check to cumulative motion algorithm.
 - Add explanation of individual axis claclulations to README mathematical foundation section
 - Change smallest tested angles to 1e-3. Anything smaller than that is not clinically relevant to a 10Hz sampling of older adults.
 - Segment location binning (identify which region each frame is within (elev + POE))
-   - Use this to determine total magnitude 
+  - Use this to determine total magnitude
 - Build scapular correction module (can switch out module logic later)
 - Visualization functions (trajectories, heatmaps, statistical plots)
 - Statistical analysis and export
