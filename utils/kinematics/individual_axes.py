@@ -156,7 +156,7 @@ def calculate_cumulative_axis_motion(
     Args:
         data (npt.NDArray[np.float64]): Motion capture table loaded via
             ``np.loadtxt`` with at least 18 columns.
-        arm (str): Arm identifier, either 'L' or 'R'.
+        arm (str): Arm identifier, either 'left' or 'right'.
 
     Returns:
         Tuple[float, float, float]: Cumulative sums for the three Y-X-Y Euler
@@ -170,8 +170,8 @@ def calculate_cumulative_axis_motion(
     """
 
     # Validate arm
-    if arm not in ['L', 'R']:
-        raise ValueError(f"arm must be 'L' or 'R', got {arm}")
+    if arm not in ['left', 'right']:
+        raise ValueError(f"arm must be 'left' or 'right', got {arm}")
 
     # Validate data shape
     data_array = np.asarray(data, dtype=np.float64)
@@ -219,8 +219,8 @@ def calculate_cumulative_axis_motion(
 #     Raises:
 #         ValueError: If input validation fails for either arm.
 #     """
-#     # Call calculate_cumulative_axis_motion for arm='L'.
-#     # Call calculate_cumulative_axis_motion for arm='R'.
+#     # Call calculate_cumulative_axis_motion for arm='left'.
+#     # Call calculate_cumulative_axis_motion for arm='right'.
 #     # Return both tuples as (left_components, right_components).
 #     raise NotImplementedError
 

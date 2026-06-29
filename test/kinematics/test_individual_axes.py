@@ -431,11 +431,11 @@ class TestCalculateRotationAngles:
         ]
     )
     def test_should_reject_invalid_arm_identifiers(self, arm):
-        with pytest.raises(ValueError, match="arm must be 'L' or 'R'"):
+        with pytest.raises(ValueError, match="arm must be 'left' or 'right'"):
             calculate_cumulative_axis_motion(np.zeros((2, 18)), arm)
     
     # Should accept valid arm identifiers
-    @pytest.mark.parametrize("arm", ["L", "R"])
+    @pytest.mark.parametrize("arm", ["left", "right"])
     def test_should_accept_valid_arm_identifiers(self, arm):
             calculate_cumulative_axis_motion(np.zeros((2, 18)), arm)
 
@@ -450,16 +450,16 @@ class TestCalculateRotationAngles:
     )
     def test_should_reject_data_with_incorrect_number_of_columns(self, data):
         with pytest.raises(ValueError, match="Data must be a 2D array with exactly 18 columns."):
-            calculate_cumulative_axis_motion(data, "L")
+            calculate_cumulative_axis_motion(data, "left")
 
     # Should reject empty data with ValueError.
     def test_should_reject_empty_data(self):
         empty_data = np.zeros((0, 18), dtype=np.float64)
         with pytest.raises(ValueError, match="Input data cannot be empty"):
-            calculate_cumulative_axis_motion(empty_data, "L")
+            calculate_cumulative_axis_motion(empty_data, "left")
 
     # Should create the rotation matrices (once) with the correct arm argument.
-    @pytest.mark.parametrize("arm", ["L", "R"])
+    @pytest.mark.parametrize("arm", ["left", "right"])
     def test_should_call_create_rotation_matrices_with_correct_arm(self, arm):
         data = np.zeros((2, 18), dtype=np.float64)
         calculate_cumulative_axis_motion(data, arm)
@@ -468,23 +468,23 @@ class TestCalculateRotationAngles:
     # Should call compute_incremental_rotation_matrices once
     def test_should_call_compute_incremental_rotation_matrices(self):
         data = np.zeros((10, 18), dtype=np.float64)
-        calculate_cumulative_axis_motion(data, "L")
+        calculate_cumulative_axis_motion(data, "left")
         self.mock_compute.assert_called_once_with(self.mock_create.return_value)
 
     # Should call decompose_rotation_matrices_yxy once 
     def test_should_call_decompose_rotation_matrices_yxy(self):
         data = np.zeros((10, 18), dtype=np.float64)
-        calculate_cumulative_axis_motion(data, "L")
+        calculate_cumulative_axis_motion(data, "left")
         self.mock_decompose.assert_called_once_with(self.mock_compute.return_value)
 
     # Should call accumulate_euler_components once.
     def test_should_call_accumulate_euler_components(self):
         data = np.zeros((10, 18), dtype=np.float64)
-        calculate_cumulative_axis_motion(data, "L")
+        calculate_cumulative_axis_motion(data, "left")
         self.mock_accumulate.assert_called_once_with(self.mock_decompose.return_value)
 
     # Should return the output of accumulate_euler_components without any modification.
     def test_should_return_accumulate_euler_components_output(self):
         data = np.zeros((10, 18), dtype=np.float64)
-        result = calculate_cumulative_axis_motion(data, "L")
+        result = calculate_cumulative_axis_motion(data, "left")
         assert result == self.mock_accumulate.return_value

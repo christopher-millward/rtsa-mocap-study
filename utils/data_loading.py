@@ -52,14 +52,14 @@ class ParticipantDetails(TypedDict):
     right: ArmRotationDetails
 
 
-def _arms_for_side(side: Literal['right', 'left', 'both', None]) -> set[Literal['R', 'L']]:
+def _arms_for_side(side: Literal['right', 'left', 'both', None]) -> set[Literal['left', 'right']]:
     """Translate a side label into the affected arm labels."""
     if side == 'right':
-        return {'R'}
+        return {'right'}
     if side == 'left':
-        return {'L'}
+        return {'left'}
     if side == 'both':
-        return {'R', 'L'}
+        return {'right', 'left'}
     return set()
 
 

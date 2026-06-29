@@ -97,12 +97,12 @@ class TestCalculateRotationAngles:
     @pytest.mark.parametrize(
         ("arm", "rotation_builder", "target_angle", "n_samples"),
         [
-            pytest.param("L", _rotation_matrix_x, np.pi / 2, 10, id="left-x-90"),
-            pytest.param("R", _rotation_matrix_x, np.pi, 5, id="right-x-180"),
-            pytest.param("L", _rotation_matrix_y, np.pi / 2, 10, id="left-y-90"),
-            pytest.param("R", _rotation_matrix_y, np.pi / 4, 8, id="right-y-45"),
-            pytest.param("L", _rotation_matrix_z, np.pi / 2, 10, id="left-z-90"),
-            pytest.param("R", _rotation_matrix_z, np.pi * 0.75, 12, id="right-z-135"),
+            pytest.param("left", _rotation_matrix_x, np.pi / 2, 10, id="left-x-90"),
+            pytest.param("right", _rotation_matrix_x, np.pi, 5, id="right-x-180"),
+            pytest.param("left", _rotation_matrix_y, np.pi / 2, 10, id="left-y-90"),
+            pytest.param("right", _rotation_matrix_y, np.pi / 4, 8, id="right-y-45"),
+            pytest.param("left", _rotation_matrix_z, np.pi / 2, 10, id="left-z-90"),
+            pytest.param("right", _rotation_matrix_z, np.pi * 0.75, 12, id="right-z-135"),
         ],
     )
     def test_should_sum_rotations_about_single_axis(
@@ -131,9 +131,9 @@ class TestCalculateRotationAngles:
     @pytest.mark.parametrize(
         ("arm", "x_angle", "y_angle", "z_angle", "n_samples"),
         [
-            pytest.param("L", 0.1, 0.2, 0.3, 10, id="left-small-xyz"),
-            pytest.param("R", np.pi / 6, np.pi / 8, np.pi / 10, 20, id="right-medium-xyz"),
-            pytest.param("L", np.pi / 3, np.pi / 4, np.pi / 5, 5, id="left-large-xyz"),
+            pytest.param("left", 0.1, 0.2, 0.3, 10, id="left-small-xyz"),
+            pytest.param("right", np.pi / 6, np.pi / 8, np.pi / 10, 20, id="right-medium-xyz"),
+            pytest.param("left", np.pi / 3, np.pi / 4, np.pi / 5, 5, id="left-large-xyz"),
         ],
     )
     def test_should_sum_rotations_with_xyz_composition(
@@ -170,7 +170,7 @@ class TestCalculateRotationAngles:
         assert total_rotation == pytest.approx(expected_total)
 
     # Test that zero rotation is handled correctly.
-    @pytest.mark.parametrize("arm", ["L", "R"])
+    @pytest.mark.parametrize("arm", ["left", "right"])
     def test_should_handle_zero_rotation(self, arm):
         identity = np.eye(3)
         rows = np.vstack(
@@ -184,7 +184,7 @@ class TestCalculateRotationAngles:
         assert total_rotation == pytest.approx(0.0)
 
     # Test stability near zero rotation.
-    @pytest.mark.parametrize("arm", ["L", "R"])
+    @pytest.mark.parametrize("arm", ["left", "right"])
     def test_should_handle_tiny_rotations(self,arm):
         tiny_angle = 1e-9
         rotation_matrix = _rotation_matrix_z(tiny_angle)
@@ -202,7 +202,7 @@ class TestCalculateRotationAngles:
         assert total_rotation >= 0.0
 
     # Test stability near pi rotation.
-    @pytest.mark.parametrize("arm", ["L", "R"])
+    @pytest.mark.parametrize("arm", ["left", "right"])
     def test_should_handle_rotations_near_pi(self, arm):
         angle = np.pi - 1e-8
         n_rows = 3
@@ -222,7 +222,7 @@ class TestCalculateRotationAngles:
         assert total_rotation == pytest.approx(expected)
 
     # Test negative angles are still summed as positive rotation.
-    @pytest.mark.parametrize("arm", ["L", "R"])
+    @pytest.mark.parametrize("arm", ["left", "right"])
     def test_should_handle_negative_angles(self, arm):
         positive = _rotation_matrix_x(np.pi / 4)
         negative = _rotation_matrix_x(-np.pi / 4)
@@ -256,7 +256,7 @@ class TestCalculateRotationAngles:
         ]
     )
     def test_should_reject_invalid_arm_identifiers(self, arm):
-        with pytest.raises(ValueError, match="arm must be 'L' or 'R'"):
+        with pytest.raises(ValueError, match="arm must be 'left' or 'right'"):
             calculate_total_rotation(np.zeros((0, 18), dtype=np.float64), arm)
 
 
@@ -270,7 +270,7 @@ class TestCalculateArmRotations:
 
         # check that calculate_total_rotation was called with the correct arguments for each arm
         assert mock_total_rotation.call_args_list == [
-            call(test_data, "L"), call(test_data, "R")]
+            call(test_data, "left"), call(test_data, "right")]
         
         # check that the returned rotations match the mock values
         assert left_rotation == 1.25

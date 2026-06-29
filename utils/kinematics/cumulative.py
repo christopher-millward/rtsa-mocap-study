@@ -55,17 +55,17 @@ def calculate_total_rotation(data: npt.NDArray[np.float64], arm: str) -> float:
     Args:
         data (npt.NDArray[np.float64]): A 2D array with 18 numeric columns per row,
             containing motion capture rotation data for both arms.
-        arm (str): Arm identifier, either 'L' (left) or 'R' (right).
+        arm (str): Arm identifier, either 'left' or 'right'.
 
     Returns:
         float: Total accumulated rotation in radians.
 
     Raises:
-        ValueError: If arm is not 'L' or 'R'.
+        ValueError: If arm is not 'left' or 'right'.
         ValueError: If the array does not have the expected shape.
     """
-    if arm not in ['L', 'R']:
-        raise ValueError(f"arm must be 'L' or 'R', got {arm}")
+    if arm not in ['left', 'right']:
+        raise ValueError(f"arm must be 'left' or 'right', got {arm}")
 
     data_array = np.asarray(data, dtype=np.float64)
     if data_array.ndim != 2 or data_array.shape[1] != 18:
@@ -99,8 +99,8 @@ def calculate_arm_rotations(data: npt.NDArray[np.float64]) -> Tuple[float, float
             if motion capture data parsing fails.
     """
     try:
-        left_rotation = calculate_total_rotation(data, 'L')
-        right_rotation = calculate_total_rotation(data, 'R')
+        left_rotation = calculate_total_rotation(data, 'left')
+        right_rotation = calculate_total_rotation(data, 'right')
 
     except Exception as e:
         raise ValueError(f"Failed to parse motion capture data: {e}") from e
