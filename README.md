@@ -212,8 +212,8 @@ Columns:
 ---
 
 ## Next Steps / TODO
+ - Verify axes are aligned (finish notebook).
 - (maybe) trim files.
-- (maybe) figure out how to handle non-orthonormal data.
 - Perform sensor drift audit.
 - Clean up README doc.
 - Calculate amount of motion about each axis
