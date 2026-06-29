@@ -11,7 +11,15 @@ import pandas as pd
 
 
 class ArmRotationDetails(TypedDict):
-    """Type definition for per-arm rotation summary metrics."""
+    """Type definition for per-arm rotation summary metrics.
+
+    Attributes:
+        humerothoracic_rotation (float | None): Description of metric.
+        glenohumeral_rotation (float | None): Description of metric.
+        total_rotation_x (float | None): Description of metric.
+        total_rotation_y (float | None): Description of metric.
+        total_rotation_z (float | None): Description of metric.
+    """
 
     humerothoracic_rotation: float | None
     glenohumeral_rotation: float | None
