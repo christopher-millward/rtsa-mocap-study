@@ -212,7 +212,6 @@ Columns:
 ---
 
 ## Next Steps / TODO
-- Check orthonormality of all new files.
 - Check to see if files need to be trimmed.
 - (maybe) trim files.
 - (maybe) figure out how to handle non-orthonormal data.
