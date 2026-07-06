@@ -6,43 +6,6 @@ import numpy as np
 import numpy.typing as npt
 
 
-def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
-    """Validate that a batch of 3x3 matrices are proper rotation matrices.
-
-    The check is fully vectorized over the batch dimension. It verifies that
-    each matrix is orthonormal by confirming ``R.T @ R == I`` for every matrix
-    in the batch, and it rejects improper rotations by requiring each
-    determinant to be approximately ``+1``.
-
-    Args:
-        matrices (npt.NDArray[np.float64]): Array of candidate rotation
-            matrices with shape ``(n_steps, 3, 3)``.
-
-    Raises:
-        ValueError: If the input is not a batch of 3x3 matrices, if any matrix
-            is not orthonormal, or if any determinant differs from ``+1``.
-    """
-    # Validate shape is (n_frames, 3, 3)
-    if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
-        raise ValueError("matrices must have shape (n_frames, 3, 3)")
-    
-    # Reject empty batch explicitly
-    if matrices.shape[0] == 0:
-        raise ValueError("batch must contain at least one matrix")
-    
-    # Coerce to float64
-    data_array = np.asarray(matrices, dtype=np.float64)
-
-    gram = np.matmul(np.transpose(data_array, (0, 2, 1)), data_array)
-    identity = np.broadcast_to(np.eye(3, dtype=np.float64), gram.shape)
-    if not np.allclose(gram, identity, atol=1e-8):
-        raise ValueError("matrices must be orthonormal rotation matrices")
-
-    dets = np.linalg.det(data_array)
-    if not np.allclose(dets, 1.0, atol=1e-6):
-        raise ValueError("matrices must have a determinant of 1")
-
-
 def create_rotation_matrices(
     data: npt.NDArray[np.float64],
     arm: str,
@@ -75,9 +38,7 @@ def create_rotation_matrices(
     # validate data shape
     data_array = np.asarray(data, dtype=np.float64)
     if data_array.ndim != 2 or data_array.shape[1] != 18:
-        raise ValueError(
-            'Data must be a 2D array with exactly 18 columns.'
-        )
+        raise ValueError('Data must be a 2D array with exactly 18 columns.')
 
     # reject empty data
     if data_array.shape[0] == 0:
@@ -86,3 +47,39 @@ def create_rotation_matrices(
     start_index = 0 if arm == 'left' else 9
     return data_array[:, start_index:start_index + 9].reshape(-1, 3, 3)
 
+
+def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
+    """Validate that a batch of 3x3 matrices are proper rotation matrices.
+
+    The check is fully vectorized over the batch dimension. It verifies that
+    each matrix is orthonormal by confirming ``R.T @ R == I`` for every matrix
+    in the batch, and it rejects improper rotations by requiring each
+    determinant to be approximately ``+1``.
+
+    Args:
+        matrices (npt.NDArray[np.float64]): Array of candidate rotation
+            matrices with shape ``(n_steps, 3, 3)``.
+
+    Raises:
+        ValueError: If the input is not a batch of 3x3 matrices, if any matrix
+            is not orthonormal, or if any determinant differs from ``+1``.
+    """
+    # Validate shape is (n_frames, 3, 3)
+    if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
+        raise ValueError("matrices must have shape (n_frames, 3, 3)")
+
+    # Reject empty batch explicitly
+    if matrices.shape[0] == 0:
+        raise ValueError("batch must contain at least one matrix")
+
+    # Coerce to float64
+    data_array = np.asarray(matrices, dtype=np.float64)
+
+    gram = np.matmul(np.transpose(data_array, (0, 2, 1)), data_array)
+    identity = np.broadcast_to(np.eye(3, dtype=np.float64), gram.shape)
+    if not np.allclose(gram, identity, atol=1e-8):
+        raise ValueError("matrices must be orthonormal rotation matrices")
+
+    dets = np.linalg.det(data_array)
+    if not np.allclose(dets, 1.0, atol=1e-6):
+        raise ValueError("matrices must have a determinant of 1")
