@@ -1,5 +1,5 @@
 """ 
-Functions for loading and processing participant data 
+Functions for loading data.
 
 Author: Christopher Millward
 """
