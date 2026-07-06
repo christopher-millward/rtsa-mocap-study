@@ -3,7 +3,7 @@ from unittest.mock import call, patch
 import numpy as np
 import pytest
 
-from utils.kinematics.cumulative import (
+from modules.cumulative_rotation import (
     calculate_arm_rotations,
     calculate_rotation_angles,
     calculate_total_rotation,

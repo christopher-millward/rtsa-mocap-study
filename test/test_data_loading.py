@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from utils.data_loading import (
+from modules.data_loading import (
     load_motion_capture_data, 
     load_participant_details
 )

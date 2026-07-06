@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 from scipy.spatial.transform import Rotation as R
-from utils.kinematics.general_helpers import (
+from modules.general_utilities import (
     validate_orthonorm_and_det,
     create_rotation_matrices,
 )

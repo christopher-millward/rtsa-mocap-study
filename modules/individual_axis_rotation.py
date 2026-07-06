@@ -8,7 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import Tuple
 from scipy.spatial.transform import Rotation as R
-from utils.kinematics.general_helpers import validate_orthonorm_and_det, create_rotation_matrices
+from modules.general_utilities import validate_orthonorm_and_det, create_rotation_matrices
 
 
 def compute_incremental_rotation_matrices(

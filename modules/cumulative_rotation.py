@@ -8,7 +8,7 @@ from typing import Tuple
 
 import numpy as np
 import numpy.typing as npt
-from utils.kinematics.general_helpers import create_rotation_matrices
+from modules.general_utilities import create_rotation_matrices
 
 
 def calculate_rotation_angles(rotation_matrices: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:

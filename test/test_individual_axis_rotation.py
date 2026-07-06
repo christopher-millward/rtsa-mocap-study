@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch
 
 # Use local trace formula in tests; don't import production helper here.
-from utils.kinematics.individual_axes import (
+from modules.individual_axis_rotation import (
     compute_incremental_rotation_matrices,
     decompose_rotation_matrices_yxy,
     accumulate_euler_components,

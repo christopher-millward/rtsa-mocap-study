@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation as R
-from utils.data_cleaning import align_axes_with_ISB
+from modules.data_cleaning import align_axes_with_ISB
 
 
 # ---- Global test variables ----

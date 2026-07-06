@@ -212,9 +212,9 @@ Columns:
 ---
 
 ## Next Steps / TODO
- - Verify axes are aligned (finish notebook).
 - (maybe) trim files.
 - Perform sensor drift audit.
+- Refactor to have orthonormality test in data cleaning script.
 - Clean up README doc.
 - Calculate amount of motion about each axis
   - Finish the "both arms" function.
