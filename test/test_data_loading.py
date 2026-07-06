@@ -1,5 +1,6 @@
 from pathlib import Path
 from unittest.mock import patch
+from config import RAW_DATA_DIR
 
 import pandas as pd
 import pytest
@@ -317,7 +318,7 @@ class TestLoadMotionCaptureData:
 
         assert result is expected
         mock_loadtxt.assert_called_once_with(
-            Path("raw_data") / Path(filename),
+            RAW_DATA_DIR / Path(filename),
             delimiter="\t",
             skiprows=1,
             usecols=range(1, 19),
