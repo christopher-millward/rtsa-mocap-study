@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
@@ -18,13 +19,42 @@ def _load_from_rows(rows):
     frame = _frame(rows)
 
     with patch("pandas.read_excel", return_value=frame) as mock_read_excel:
-        participants = load_participant_details("fake-path.xlsx")
+        participants = load_participant_details(Path("fake-path.xlsx"))
 
-    mock_read_excel.assert_called_once_with("fake-path.xlsx")
+    mock_read_excel.assert_called_once_with(Path("fake-path.xlsx"))
     return participants
 
 
 class TestLoadParticipantDetails:
+    @pytest.mark.parametrize(
+        "filepath",
+        [
+            pytest.param("fake-path.xlsx", id="string"),
+            pytest.param(Path("fake-path.xlsx"), id="path"),
+        ],
+    )
+    def test_should_accept_string_or_path_filepath(self, filepath):
+        frame = _frame(
+            [
+                {
+                    "fname": "participant-a",
+                    "RTSA-R": 0,
+                    "RTSA-L": 0,
+                    "TSA-R": 0,
+                    "TSA-L": 0,
+                    "R-DOM": 1,
+                    "L-DOM": 0,
+                    "Age": 74,
+                }
+            ]
+        )
+
+        with patch("pandas.read_excel", return_value=frame) as mock_read_excel:
+            participants = load_participant_details(filepath)
+
+        mock_read_excel.assert_called_once_with(Path(filepath))
+        assert participants[0]["filename"] == "participant-a"
+
     # RTSA side is derived from the pair of shoulder-flag columns.
     @pytest.mark.parametrize(
         ("rtsa_r", "rtsa_l", "expected"),
@@ -272,29 +302,45 @@ class TestLoadParticipantDetails:
 
 
 class TestLoadMotionCaptureData:
-    def test_should_use_filename_and_default_params(self):
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            pytest.param("participant-a.tsv", id="string"),
+            pytest.param(Path("participant-a.tsv"), id="path"),
+        ],
+    )
+    def test_should_use_filename_and_default_params(self, filename):
         expected = pd.DataFrame([[1.0, 2.0]])
 
         with patch("numpy.loadtxt", return_value=expected) as mock_loadtxt:
-            result = load_motion_capture_data("participant-a.tsv")
+            result = load_motion_capture_data(filename)
 
         assert result is expected
         mock_loadtxt.assert_called_once_with(
-            "./raw_data/participant-a.tsv",
+            Path("raw_data") / Path(filename),
             delimiter="\t",
             skiprows=1,
             usecols=range(1, 19),
         )
 
-    def test_should_allow_custom_data_directory(self):
+    @pytest.mark.parametrize(
+        ("filename", "data_dir"),
+        [
+            pytest.param("participant-b.tsv", "./custom_dir", id="string-string"),
+            pytest.param(Path("participant-b.tsv"), Path("./custom_dir"), id="path-path"),
+            pytest.param(Path("participant-b.tsv"), "./custom_dir", id="path-string"),
+            pytest.param("participant-b.tsv", Path("./custom_dir"), id="string-path"),
+        ],
+    )
+    def test_should_allow_custom_data_directory(self, filename, data_dir):
         expected = pd.DataFrame([[3.0, 4.0]])
 
         with patch("numpy.loadtxt", return_value=expected) as mock_loadtxt:
-            result = load_motion_capture_data("participant-b.tsv", data_dir="./custom_dir")
+            result = load_motion_capture_data(filename, data_dir=data_dir)
 
         assert result is expected
         mock_loadtxt.assert_called_once_with(
-            "./custom_dir/participant-b.tsv",
+            Path(data_dir) / Path(filename),
             delimiter="\t",
             skiprows=1,
             usecols=range(1, 19),

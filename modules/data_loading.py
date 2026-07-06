@@ -8,6 +8,7 @@ from typing import List, TypedDict, Literal, cast
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from pathlib import Path
 
 
 class ArmRotationDetails(TypedDict):
@@ -43,7 +44,7 @@ class ParticipantDetails(TypedDict):
         right (ArmRotationDetails): Rotation summary metrics for the right arm.
     """
 
-    filename: str
+    filename: Path
     rtsa_side: Literal['right', 'left', 'both', None]
     tsa_side: Literal['right', 'left', 'both', None]
     dominant_arm: Literal['right', 'left', None]
@@ -63,7 +64,7 @@ def _arms_for_side(side: Literal['right', 'left', 'both', None]) -> set[Literal[
     return set()
 
 
-def load_participant_details(filepath: str) -> List[ParticipantDetails]:
+def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
     """Load participant details from an Excel file and return structured data.
 
     This function reads a participant details Excel file and returns a list of
@@ -72,7 +73,7 @@ def load_participant_details(filepath: str) -> List[ParticipantDetails]:
     shoulder arthroplasty), dominant arm, and age.
 
     Args:
-        filepath (str): Path to the participant_details.xlsx file.
+        filepath (str | Path): Path to the participant_details.xlsx file.
 
     Returns:
         List[ParticipantDetails]: A list of dictionaries, where each dictionary
@@ -89,6 +90,7 @@ def load_participant_details(filepath: str) -> List[ParticipantDetails]:
         {'filename': '1_R_MATRICES 2016-5-10', 'rtsa_side': 'right',
          'tsa_side': None, 'dominant_arm': 'right', 'age': 74}
     """
+    filepath = Path(filepath)
     df: pd.DataFrame = pd.read_excel(filepath)
 
     participants: List[ParticipantDetails] = []
@@ -135,7 +137,7 @@ def load_participant_details(filepath: str) -> List[ParticipantDetails]:
             )
 
         participant: ParticipantDetails = {
-            'filename': cast(str, row.get('fname')),
+            'filename': cast(Path, row.get('fname')),
             'rtsa_side': rtsa_side,
             'tsa_side': tsa_side,
             'dominant_arm': dominant_arm,
@@ -162,19 +164,20 @@ def load_participant_details(filepath: str) -> List[ParticipantDetails]:
 
 
 def load_motion_capture_data(
-    filename: str,
-    data_dir: str = './raw_data',
+    filename: str | Path,
+    data_dir: str | Path = './raw_data',
 ) -> npt.NDArray[np.float64]:
     """Load motion-capture data from a tab-delimited file into a NumPy array.
 
     Args:
-        filename (str): Motion-capture filename in the expected format from `ParticipantDetails['filename']`.
-        data_dir (str): Directory that contains the raw motion-capture files.
+        filename (str | Path): Motion-capture filename in the expected format from `ParticipantDetails['filename']`.
+        data_dir (str | Path): Directory that contains the raw motion-capture files.
 
     Returns:
         npt.NDArray[np.float64]: Array of motion-capture values loaded with `np.loadtxt`.
     """
-    filepath = f'{data_dir}/{filename}'
+    data_dir = Path(data_dir)
+    filepath = data_dir / Path(filename)
     return np.loadtxt(
         filepath,
         delimiter='\t',
