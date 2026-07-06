@@ -9,6 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from pathlib import Path
+from config import RAW_DATA_DIR
 
 
 class ArmRotationDetails(TypedDict):
@@ -165,7 +166,7 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
 
 def load_motion_capture_data(
     filename: str | Path,
-    data_dir: str | Path = './raw_data',
+    data_dir: str | Path = RAW_DATA_DIR,
 ) -> npt.NDArray[np.float64]:
     """Load motion-capture data from a tab-delimited file into a NumPy array.
 
