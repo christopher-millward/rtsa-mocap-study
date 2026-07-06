@@ -117,6 +117,7 @@ def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
     # Coerce to float64
     data_array = np.asarray(matrices, dtype=np.float64)
 
+    # Calculate errors
     gram = np.matmul(np.transpose(data_array, (0, 2, 1)), data_array)
     identity = np.broadcast_to(np.eye(3, dtype=np.float64), gram.shape)
     orthonormal_error = np.abs(gram - identity)
@@ -129,7 +130,6 @@ def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
         )
 
     dets = np.linalg.det(data_array)
-
     det_errors = np.abs(dets - 1.0)
     max_det_error = np.max(det_errors)
 
