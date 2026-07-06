@@ -5,6 +5,7 @@ Author: Christopher Millward
 import numpy as np
 import numpy.typing as npt
 from typing import Literal
+from config import ORTHONORMAL_TOLERANCE, DETERMINANT_TOLERANCE
 
 
 def align_axes_with_ISB(
@@ -118,11 +119,11 @@ def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
 
     gram = np.matmul(np.transpose(data_array, (0, 2, 1)), data_array)
     identity = np.broadcast_to(np.eye(3, dtype=np.float64), gram.shape)
-    if not np.allclose(gram, identity, atol=1e-8):
+    if not np.allclose(gram, identity, atol=ORTHONORMAL_TOLERANCE):
         raise ValueError("matrices must be orthonormal rotation matrices")
 
     dets = np.linalg.det(data_array)
-    if not np.allclose(dets, 1.0, atol=1e-6):
+    if not np.allclose(dets, 1.0, atol=DETERMINANT_TOLERANCE):
         raise ValueError("matrices must have a determinant of 1")
 
 
