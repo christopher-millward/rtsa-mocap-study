@@ -8,4 +8,4 @@ RAW_DATA_DIR = DATA_DIR / "raw_normalized_data"
 ORTHONORMAL_TOLERANCE = 1e-4
 DETERMINANT_TOLERANCE = 1e-6
 
-RESULTS_PATH = PROJ_ROOT / "outputs" / "results"
+RESULTS_PATH = PROJ_ROOT / "outputs" / "results.csv"
