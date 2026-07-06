@@ -4,6 +4,7 @@ from config import RAW_DATA_DIR
 
 import pandas as pd
 import pytest
+import numpy as np
 
 from modules.data_loading import (
     load_motion_capture_data, 
@@ -265,9 +266,9 @@ class TestLoadParticipantDetails:
         )
 
         participant = participants[0]
-        participant["left"]["total_rotation_x"] = 2.5
+        participant["left"]["total_rotation_x"] = np.float64(2.5)
 
-        assert participant["left"]["total_rotation_x"] == 2.5
+        assert participant["left"]["total_rotation_x"] == np.float64(2.5)
         assert participant["right"]["total_rotation_x"] is None
 
     @pytest.mark.parametrize(
