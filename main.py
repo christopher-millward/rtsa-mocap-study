@@ -4,7 +4,8 @@ Author: Christopher Millward
 """
 from pathlib import Path
 from modules.data_loading import load_participant_details, load_motion_capture_data
-from modules.data_cleaning import clean_data
+from modules.data_preprocessing import clean_and_validate_data
+from modules.general_utilities import create_rotation_matrices
 
 ### Vars
 details_path = Path.cwd() / "data" / "raw_normalized_data" / "participant_details.xlsx"
@@ -12,7 +13,7 @@ details_path = Path.cwd() / "data" / "raw_normalized_data" / "participant_detail
 
 
 def main():
-# Main function to run the analysis
+    """This function orchestrates the entire analysis pipeline."""
     
     # Load participant details from the Excel file
     participant_details = load_participant_details(details_path)
@@ -22,8 +23,13 @@ def main():
         # load the data
         raw_data = load_motion_capture_data(participant['filename'])
 
+        # Build R matrices
+        data_right = create_rotation_matrices(raw_data, arm='right')
+        data_left = create_rotation_matrices(raw_data, arm='left')
+
         # clean data
-        # cleaned_data = clean_data(raw_data)
+        data_right = clean_and_validate_data(data_right, 'right')
+        data_left = clean_and_validate_data(data_left, 'left')
 
         # run analysis
             # for each arm (op and non-op)
