@@ -15,18 +15,18 @@ class ArmRotationDetails(TypedDict):
     """Type definition for per-arm rotation summary metrics.
 
     Attributes:
-        humerothoracic_rotation (float | None): Description of metric.
-        glenohumeral_rotation (float | None): Description of metric.
-        total_rotation_x (float | None): Description of metric.
-        total_rotation_y (float | None): Description of metric.
-        total_rotation_z (float | None): Description of metric.
+        humerothoracic_rotation (np.float64 | None): Description of metric.
+        glenohumeral_rotation (np.float64 | None): Description of metric.
+        total_rotation_x (np.float64 | None): Description of metric.
+        total_rotation_y (np.float64 | None): Description of metric.
+        total_rotation_z (np.float64 | None): Description of metric.
     """
 
-    humerothoracic_rotation: float | None
-    glenohumeral_rotation: float | None
-    total_rotation_x: float | None
-    total_rotation_y: float | None
-    total_rotation_z: float | None
+    humerothoracic_rotation: np.float64 | None
+    glenohumeral_rotation: np.float64 | None
+    total_rotation_x: np.float64 | None
+    total_rotation_y: np.float64 | None
+    total_rotation_z: np.float64 | None
 
 
 class ParticipantDetails(TypedDict):

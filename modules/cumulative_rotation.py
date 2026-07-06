@@ -45,7 +45,7 @@ def calculate_rotation_angles(rotation_matrices: npt.NDArray[np.float64]) -> npt
     return angles
 
 
-def calculate_total_rotation(data: npt.NDArray[np.float64], arm: str) -> float:
+def calculate_total_rotation(data: npt.NDArray[np.float64], arm: str) -> np.float64:
     """Calculate total rotation magnitude for an arm across all frames.
 
     Extracts a batch of rotation matrices using `create_rotation_matrices`,
@@ -58,7 +58,7 @@ def calculate_total_rotation(data: npt.NDArray[np.float64], arm: str) -> float:
         arm (str): Arm identifier, either 'left' or 'right'.
 
     Returns:
-        float: Total accumulated rotation in radians.
+        np.float64: Total accumulated rotation in radians.
 
     Raises:
         ValueError: If arm is not 'left' or 'right'.
@@ -76,10 +76,10 @@ def calculate_total_rotation(data: npt.NDArray[np.float64], arm: str) -> float:
     matrices = create_rotation_matrices(data_array, arm)
     angles = calculate_rotation_angles(matrices)
     
-    return float(angles.sum())
+    return np.float64(angles.sum())
 
 
-def calculate_arm_rotations(data: npt.NDArray[np.float64]) -> Tuple[float, float]:
+def calculate_arm_rotations(data: npt.NDArray[np.float64]) -> Tuple[np.float64, np.float64]:
     """Calculate total rotation for both arms from a motion capture array.
 
     Calls `calculate_total_rotation` for each arm, which internally uses
@@ -91,7 +91,7 @@ def calculate_arm_rotations(data: npt.NDArray[np.float64]) -> Tuple[float, float
             formatted with at least 18 columns of rotation data.
 
     Returns:
-        Tuple[float, float]: A tuple of (left_rotation, right_rotation) in
+        Tuple[np.float64, np.float64]: A tuple of (left_rotation, right_rotation) in
             radians, representing total accumulated rotation for each arm.
 
     Raises:
