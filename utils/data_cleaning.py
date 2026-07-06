@@ -52,11 +52,11 @@ def align_axes_with_ISB(
     # These transformation matrices were determined from the IMUs being in the
     # following orientations relative to the ISB axes:
     #
-    # | ISB | Torso IMU | Right IMU | Left IMU |
-    # | --- | --------- | --------- | -------- |
-    # | X   | Z         | -X        | X        |
-    # | Y   | -Y        | -Y        | -Y       |
-    # | Z   | X         | Z         | Z        |
+    # | ISB Right Arm | Toroso IMU | Right IMU | Left IMU |
+    # | ------------- | ---------- | --------- | -------- |
+    # | X             | Z          | -X        | X        |
+    # | Y             | -Y         | -Y        | -Y       |
+    # | Z             | X          | Z         | -Z       |
 
     t_torso = np.array(
         [
@@ -78,7 +78,7 @@ def align_axes_with_ISB(
         [
             [1, 0, 0],
             [0, -1, 0],
-            [0, 0, 1],
+            [0, 0, -1],
         ],
         dtype=np.float64,
     )

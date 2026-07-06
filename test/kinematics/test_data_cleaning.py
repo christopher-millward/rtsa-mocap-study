@@ -26,7 +26,7 @@ LEFT_TO_ISB = np.array(
     [
         [1.0, 0.0, 0.0],
         [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, -1.0],
     ],
     dtype=np.float64,
 )
@@ -186,7 +186,8 @@ class TestAlignAxesWithISB:
         rotation_matrices = R.random(8).as_matrix()
         result = align_axes_with_ISB(rotation_matrices, arm)
 
-        assert np.allclose(np.abs(np.linalg.det(result)), 1.0, atol=TOLERANCE)
+        # assert np.allclose(np.abs(np.linalg.det(result)), 1.0, atol=TOLERANCE)
+        assert np.allclose(np.linalg.det(result), 1.0, atol=TOLERANCE)
 
     # Should recover the original matrices when the inverse transform is applied.
     @pytest.mark.parametrize(
