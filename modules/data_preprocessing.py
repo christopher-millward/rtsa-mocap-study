@@ -119,12 +119,25 @@ def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
 
     gram = np.matmul(np.transpose(data_array, (0, 2, 1)), data_array)
     identity = np.broadcast_to(np.eye(3, dtype=np.float64), gram.shape)
-    if not np.allclose(gram, identity, atol=ORTHONORMAL_TOLERANCE):
-        raise ValueError("matrices must be orthonormal rotation matrices")
+    orthonormal_error = np.abs(gram - identity)
+    max_orthonormal_error = np.max(orthonormal_error)
+
+    if max_orthonormal_error > ORTHONORMAL_TOLERANCE:
+        raise ValueError(
+            f"matrices must be orthonormal rotation matrices. "
+            f"Largest orthonormality error: {max_orthonormal_error:.3e}"
+        )
 
     dets = np.linalg.det(data_array)
-    if not np.allclose(dets, 1.0, atol=DETERMINANT_TOLERANCE):
-        raise ValueError("matrices must have a determinant of 1")
+
+    det_errors = np.abs(dets - 1.0)
+    max_det_error = np.max(det_errors)
+
+    if max_det_error > DETERMINANT_TOLERANCE:
+        raise ValueError(
+            f"matrices must have a determinant of 1. "
+            f"Largest determinant error: {max_det_error:.3e}"
+        )
 
 
 def clean_and_validate_data(matrices: npt.NDArray[np.float64], arm: Literal['left', 'right']) -> npt.NDArray[np.float64]:
