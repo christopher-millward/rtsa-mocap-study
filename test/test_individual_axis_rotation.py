@@ -404,13 +404,13 @@ class TestCalculateRotationAngles:
     # Mock the entire pipeline
     @pytest.fixture(autouse=True)
     def setup_mocks(self):
-        with patch("utils.kinematics.individual_axes.create_rotation_matrices",
+        with patch("modules.individual_axis_rotation.create_rotation_matrices",
                 return_value=np.zeros((2, 3, 3))) as create_mock, \
-            patch("utils.kinematics.individual_axes.compute_incremental_rotation_matrices",
+            patch("modules.individual_axis_rotation.compute_incremental_rotation_matrices",
                 return_value=np.zeros((1, 3, 3))) as compute_mock, \
-            patch("utils.kinematics.individual_axes.decompose_rotation_matrices_yxy",
+            patch("modules.individual_axis_rotation.decompose_rotation_matrices_yxy",
                 return_value=np.zeros((1, 3))) as decompose_mock, \
-            patch("utils.kinematics.individual_axes.accumulate_euler_components",
+            patch("modules.individual_axis_rotation.accumulate_euler_components",
                 return_value=(0, 0, 0)) as accumulate_mock:
 
             # store mocks for later assertions

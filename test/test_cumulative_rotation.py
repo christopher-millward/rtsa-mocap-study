@@ -265,7 +265,7 @@ class TestCalculateArmRotations:
         test_data = np.vstack([_row_with_both_arms(np.eye(3), np.eye(3))])
 
         # replace calculate_total_rotation with a mock that returns fixed values for left and right arms
-        with patch("utils.kinematics.cumulative.calculate_total_rotation", side_effect=[1.25, 2.5]) as mock_total_rotation:
+        with patch("modules.cumulative_rotation.calculate_total_rotation", side_effect=[1.25, 2.5]) as mock_total_rotation:
             left_rotation, right_rotation = calculate_arm_rotations(test_data)
 
         # check that calculate_total_rotation was called with the correct arguments for each arm
@@ -279,6 +279,6 @@ class TestCalculateArmRotations:
     def test_should_wrap_exceptions_from_total_rotation(self):
         # If calculate_total_rotation raises, calculate_arm_rotations should
         # wrap it as a ValueError with a helpful message.
-        with patch("utils.kinematics.cumulative.calculate_total_rotation", side_effect=Exception("Boom!")):
+        with patch("modules.cumulative_rotation.calculate_total_rotation", side_effect=Exception("Boom!")):
             with pytest.raises(ValueError, match="Failed to parse motion capture data"):
                 calculate_arm_rotations(np.zeros((0, 18), dtype=np.float64))
