@@ -34,25 +34,24 @@ def main():
     for i, participant in progress:
         progress.set_postfix(file=participant["filename"])
 
-        # load the data
-        raw_data = load_motion_capture_data(participant['filename'])
-
         # skip file if there is no RTSA
         if participant['rtsa_side'] is None:
             continue
 
-        # Build R matrices
-        data_right = create_rotation_matrices(raw_data, arm='right')
-        data_left = create_rotation_matrices(raw_data, arm='left')
+        # load the data
+        raw_data = load_motion_capture_data(participant['filename'])
 
         # clean data
-        data_right = clean_and_validate_data(data_right, 'right')
-        data_left = clean_and_validate_data(data_left, 'left')
+        clean_data = clean_and_validate_data(raw_data)
+
+        # # Build R matrices
+        # data_right = create_rotation_matrices(clean_data, arm='right')
+        # data_left = create_rotation_matrices(clean_data, arm='left')
 
         # run analysis
         # cumulative rotation
-        total_right = calculate_total_rotation(data_right, 'right')
-        total_left = calculate_total_rotation(data_left, 'left')
+        total_right = calculate_total_rotation(clean_data, 'right')
+        total_left = calculate_total_rotation(clean_data, 'left')
 
         # rotation in each bin
         # i.e., how much flex/ext in the range of 0-10 degrees, 10-20 degrees, etc.
@@ -61,6 +60,7 @@ def main():
         # Save the results to the data object
         participant_details[i]['right']['humerothoracic_rotation'] = total_right
         participant_details[i]['left']['humerothoracic_rotation'] = total_left
+        
         # save bin calcs
 
     # write data object to a CSV file
