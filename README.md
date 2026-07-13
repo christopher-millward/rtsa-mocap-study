@@ -212,8 +212,9 @@ Columns:
 ---
 
 ## Next Steps / TODO
-- Visually verify axes are lined up following axis alignment transforms.
-- Implement orthonormality check into data preprocessing pipeline.
+- Refactor the ingestion pipeline... data cleaning functions take in a single side of R matrices, but the rotation calculation functions take in the entire data file in an nx18 array. This doesn't make sense in the data cleaning pipeline.
+   - did this, but verify it works. 
+- build out testing suite for `convert_to_ISB_flat()`.  
 - (maybe) trim files.
 - Perform sensor drift audit.
 - Clean up README doc.
