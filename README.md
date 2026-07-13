@@ -212,9 +212,8 @@ Columns:
 ---
 
 ## Next Steps / TODO
-- Refactor the ingestion pipeline... data cleaning functions take in a single side of R matrices, but the rotation calculation functions take in the entire data file in an nx18 array. This doesn't make sense in the data cleaning pipeline.
-   - did this, but verify it works. 
-- build out testing suite for `convert_to_ISB_flat()`.  
+- Visually confirm that axes align following axis transforms.
+- Implement orthonormality check into preprocessing pipeline.
 - (maybe) trim files.
 - Perform sensor drift audit.
 - Clean up README doc.
