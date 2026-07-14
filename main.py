@@ -41,12 +41,8 @@ def main():
         # load the data
         raw_data = load_motion_capture_data(participant['filename'])
 
-        # clean data
+        # clean and validate data
         clean_data = clean_and_validate_data(raw_data)
-
-        # # Build R matrices
-        # data_right = create_rotation_matrices(clean_data, arm='right')
-        # data_left = create_rotation_matrices(clean_data, arm='left')
 
         # run analysis
         # cumulative rotation
@@ -61,7 +57,7 @@ def main():
         participant_details[i]['right']['humerothoracic_rotation'] = total_right
         participant_details[i]['left']['humerothoracic_rotation'] = total_left
         
-        # save bin calcs
+        # save bin calcs tot he data object
 
     # write data object to a CSV file
     df = pd.json_normalize(
