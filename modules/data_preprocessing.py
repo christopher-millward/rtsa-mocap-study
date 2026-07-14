@@ -6,6 +6,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import TypedDict
 from config import ORTHONORMAL_TOLERANCE, DETERMINANT_TOLERANCE
+from modules.general_utilities import create_rotation_matrices
 
 # Define the axis permutation and sign changes for aligning IMU axes with ISB axes
 class ISBAxisTransform(TypedDict):
@@ -188,16 +189,21 @@ def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
             f"Largest determinant error: {max_det_error:.3e}"
         )
 
-def clean_and_validate_data(matrices: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-    """Clean a batch of arm rotation matrices for analysis.
+def clean_and_validate_data(raw_data: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """
+    Clean a batch of arm rotation matrices for analysis. Tasks:
+        - Align the axes of the left and right arm rotation matrices with the ISB
+          coordinate system.
+        - Validate that the resulting matrices are proper rotation matrices.
 
     Args:
-        matrices (npt.NDArray[np.float64]): Array of candidate rotation
-            matrices with shape ``(n_steps, 3, 3)``.
+        raw_data:
+            Array of flattened rotation matrices with shape ``(n_frames, 18)``.
 
     Returns:
-        npt.NDArray[np.float64]: An array of 3x3 rotation matrices with shape
-            (n_frames, 3, 3).
+        npt.NDArray[np.float64]: 
+            Array of flattened rotation matrices with shape (``(n_frames, 18)``
+            after cleaning and validation
 
     Raises:
         ValueError: If the input is not a batch of 3x3 matrices, if any matrix
@@ -205,10 +211,11 @@ def clean_and_validate_data(matrices: npt.NDArray[np.float64]) -> npt.NDArray[np
     """
 
     # align axes with ISB CS
-    cleaned_matrices = align_axes_with_ISB(matrices)
+    cleaned_matrices = align_axes_with_ISB(raw_data)
 
     # validate orthonormality and determinant
-    # validate_orthonorm_and_det(cleaned_matrices)
+    validate_orthonorm_and_det(create_rotation_matrices(cleaned_matrices, "right"))
+    validate_orthonorm_and_det(create_rotation_matrices(cleaned_matrices, "left"))
 
     # return cleaned data
     return cleaned_matrices
