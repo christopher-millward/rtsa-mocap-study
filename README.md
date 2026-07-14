@@ -213,8 +213,11 @@ Columns:
 
 ## Next Steps / TODO
 - Visually confirm that axes align following axis transforms.
+   - Waiting for Dan's confirmation.
+   - If Dan confirms that all is correct, I think I should just plot the distribution of where the humerus spends most of its time (on a sphere) and see if it's reasonable. If it looks like any of the axes need to be reversed, I'll address it with Dan.  
 - Implement orthonormality check into preprocessing pipeline.
 - (maybe) trim files.
+   - Need to align axes first so I know which axes to plot for visual inspection of "dead" data.
 - Perform sensor drift audit.
 - Clean up README doc.
 - Calculate amount of motion about each axis
