@@ -8,7 +8,8 @@ from modules.individual_axis_rotation import (
     compute_incremental_rotation_matrices,
     decompose_rotation_matrices_yxy,
     accumulate_euler_components,
-    calculate_cumulative_axis_motion
+    calculate_cumulative_axis_motion,
+    get_bin_data
 )
 from config import SMALLEST_CLINICALLY_RELEVANT_ANGLE as SMALL_ANGLE
 
@@ -398,6 +399,181 @@ class TestAccumulateEulerComponents:
         before = arr.copy()
         _ = accumulate_euler_components(arr)
         assert np.array_equal(arr, before)
+
+class TestGetBinData:  
+    # Raises IndexError for invalid axis
+    @pytest.mark.parametrize("axis_index", [-1, 20])
+    def test_raises_index_error_for_invalid_axis(self, axis_index: int) -> None:
+        """An invalid axis index should raise an IndexError."""
+        data = np.array(
+            [
+                [1.0, 2.0, 3.0],
+                [3.0, 4.0, 5.0],
+            ]
+        )
+
+        with pytest.raises(IndexError):
+            get_bin_data(data, 0, 10, axis_index)
+
+    # Throws error when bin width is zero
+    def test_raises_error_when_bin_width_is_zero(self) -> None:
+        """A zero-width bin should raise a ValueError."""
+        data = np.array(
+                    [
+                        [1.0, 2.0, 3.0],
+                        [3.0, 4.0, 5.0],
+                    ]
+                )
+
+        with pytest.raises(ValueError):
+            get_bin_data(data, 20, 20, 0)
+
+    # Returns all desired rows
+    def test_returns_all_desired_rows(self) -> None:
+        """Only rows within the requested bin should be returned."""
+        data = np.array(
+            [
+                [5.0, 100.0, 0.0],
+                [25.0, 200.0, 0.0],
+                [35.0, 300.0, 0.0],
+                [28.0, 400.0, 0.0],
+            ]
+        )
+
+        expected = np.array(
+            [
+                [25.0, 200.0, 0.0],
+                [28.0, 400.0, 0.0],
+            ]
+        )
+
+        result = get_bin_data(data, 20, 30, 0)
+
+        np.testing.assert_array_equal(result, expected)
+
+    # Returns rows with all columns preserved
+    def test_returns_rows_with_all_columns_preserved(self) -> None:
+        """Filtering should remove rows only, never columns."""
+        data = np.array(
+            [
+                [25.0, 1.0, 100.0],
+                [50.0, 2.0, 200.0],
+            ]
+        )
+
+        expected = np.array(
+            [
+                [25.0, 1.0, 100.0],
+            ]
+        )
+
+        result = get_bin_data(data, 20, 30, 0)
+
+        np.testing.assert_array_equal(result, expected)
+        assert result.shape == (1, 3)
+
+    # Maintains original row and column order
+    def test_maintains_original_row_and_column_order(self) -> None:
+        """Returned rows should preserve their original ordering."""
+        data = np.array(
+            [
+                [28.0, 1.0, 0.0],
+                [21.0, 2.0, 0.1],
+                [26.0, 3.0, 0.2],
+            ]
+        )
+
+        result = get_bin_data(data, 20, 30, 0)
+
+        np.testing.assert_array_equal(result, data)
+
+    # Doesn't alter the data (values) while fetching
+    def test_does_not_alter_data_values(self) -> None:
+        """The function should not modify the input array."""
+        data = np.array(
+            [
+                [10.0, 1.0, 0.0],
+                [20.0, 2.0, 0.1],
+                [30.0, 3.0, 0.2],
+            ]
+        )
+
+        original = data.copy()
+
+        _ = get_bin_data(data, 0, 25, 0)
+
+        np.testing.assert_array_equal(data, original)
+
+    # Returns empty array when no rows match
+    def test_returns_empty_array_when_no_rows_match(self) -> None:
+        """No matching rows should return an empty array with the same number of columns."""
+        data = np.array(
+            [
+                [1.0, 10.0, 0.0],
+                [2.0, 20.0, 0.1],
+            ]
+        )
+
+        result = get_bin_data(data, 50, 60, 0)
+
+        assert result.shape == (0, 3)
+
+    # Lower bound is inclusive
+    # Upper bound is exclusive
+    @pytest.mark.parametrize(
+        ("value", "expected_rows"),
+        [
+            (20.0, 1),
+            (19.9999, 0),
+        ],
+    )
+    def test_lower_bound_is_inclusive(
+        self,
+        value: float,
+        expected_rows: int,
+    ) -> None:
+        """The lower bin boundary should be included."""
+        data = np.array([[value, 1.0]])
+
+        result = get_bin_data(data, 20, 30, 0)
+
+        assert result.shape[0] == expected_rows
+
+    # Works on each column set as axis_index
+    @pytest.mark.parametrize("axis_index", [0, 1, 2])
+    def test_works_on_each_column_as_axis_index(self, axis_index: int) -> None:
+        """Filtering should work regardless of which column is selected."""
+        data = np.array(
+            [
+                [25.0, 100.0, 1000.0],
+                [50.0, 25.0, 1000.0],
+                [50.0, 100.0, 25.0],
+            ]
+        )
+
+        result = get_bin_data(data, 20, 30, axis_index)
+
+        assert result.shape == (1, 3)
+
+    # Works with a single-row array
+    @pytest.mark.parametrize(
+        ("value", "expected_rows"),
+        [
+            (25.0, 1),
+            (40.0, 0),
+        ],
+    )
+    def test_works_with_single_row_array(
+        self,
+        value: float,
+        expected_rows: int,
+    ) -> None:
+        """Single-row arrays should be handled correctly."""
+        data = np.array([[value, 123.0]])
+        result = get_bin_data(data, 20, 40, 0)
+
+        assert result.shape[0] == expected_rows
+
 
 class TestCalculateRotationAngles:
     # Mock the entire pipeline
