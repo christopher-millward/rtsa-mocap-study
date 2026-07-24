@@ -4,6 +4,7 @@ Functions for loading data.
 Author: Christopher Millward
 """
 
+from dataclasses import dataclass
 from typing import List, TypedDict, Literal, cast
 import numpy as np
 import numpy.typing as npt
@@ -11,30 +12,30 @@ import pandas as pd
 from pathlib import Path
 from config import RAW_DATA_DIR
 
-
-class ArmRotationDetails(TypedDict):
+@dataclass
+class ArmRotationDetails():
     """Type definition for per-arm rotation summary metrics.
 
     Attributes:
-        humerothoracic_rotation (np.float64 | None): Description of metric.
-        glenohumeral_rotation (np.float64 | None): Description of metric.
+        total_humerothoracic_rotation (np.float64 | None): Description of metric.
+        total_glenohumeral_rotation (np.float64 | None): Description of metric.
         total_rotation_x (np.float64 | None): Description of metric.
         total_rotation_y (np.float64 | None): Description of metric.
         total_rotation_z (np.float64 | None): Description of metric.
     """
 
-    humerothoracic_rotation: np.float64 | None
-    glenohumeral_rotation: np.float64 | None
+    total_humerothoracic_rotation: np.float64 | None
+    total_glenohumeral_rotation: np.float64 | None
     total_rotation_x: np.float64 | None
     total_rotation_y: np.float64 | None
     total_rotation_z: np.float64 | None
 
-
-class ParticipantDetails(TypedDict):
+@dataclass
+class ParticipantDetails():
     """Type definition for participant detail records.
 
     Attributes:
-        filename (str): The participant's filename identifier.
+        filename (Path): The participant's filename identifier.
         rtsa_side ('right' | 'left' | 'both' | None): Side of Reverse TSA procedure
             ('right', 'left', 'both', or None if no RTSA).
         tsa_side ('right' | 'left' | 'both' | None): Side of TSA procedure ('right', 'left', 'both', or 'none').
@@ -137,27 +138,27 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
                 'A participant cannot have RTSA and TSA on the same arm.'
             )
 
-        participant: ParticipantDetails = {
-            'filename': cast(Path, row.get('fname')),
-            'rtsa_side': rtsa_side,
-            'tsa_side': tsa_side,
-            'dominant_arm': dominant_arm,
-            'age': cast(int, row.get('Age')),
-            'left': {
-                'humerothoracic_rotation': None,
-                'glenohumeral_rotation': None,
-                'total_rotation_x': None,
-                'total_rotation_y': None,
-                'total_rotation_z': None,
-            },
-            'right': {
-                'humerothoracic_rotation': None,
-                'glenohumeral_rotation': None,
-                'total_rotation_x': None,
-                'total_rotation_y': None,
-                'total_rotation_z': None,
-            },
-        }
+        participant: ParticipantDetails = ParticipantDetails(
+            filename=cast(Path, row.get('fname')),
+            rtsa_side=rtsa_side,
+            tsa_side=tsa_side,
+            dominant_arm=dominant_arm,
+            age=cast(int, row.get('Age')),
+            left=ArmRotationDetails(
+                total_humerothoracic_rotation=None,
+                total_glenohumeral_rotation=None,
+                total_rotation_x=None,
+                total_rotation_y=None,
+                total_rotation_z=None,
+            ),
+            right=ArmRotationDetails(
+                total_humerothoracic_rotation=None,
+                total_glenohumeral_rotation=None,
+                total_rotation_x=None,
+                total_rotation_y=None,
+                total_rotation_z=None,
+            ),
+        )
 
         participants.append(participant)
 

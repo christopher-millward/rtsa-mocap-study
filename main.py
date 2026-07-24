@@ -32,14 +32,14 @@ def main():
 
     # For each participant
     for i, participant in progress:
-        progress.set_postfix(file=participant["filename"])
+        progress.set_postfix(file=participant.filename)
 
         # skip file if there is no RTSA
-        if participant['rtsa_side'] is None:
+        if participant.rtsa_side is None:
             continue
 
         # load the data
-        raw_data = load_motion_capture_data(participant['filename'])
+        raw_data = load_motion_capture_data(participant.filename)
 
         # clean and validate data
         clean_data = clean_and_validate_data(raw_data)
@@ -54,8 +54,8 @@ def main():
         # do this for each axis (flex/ext, abd/add, int/ext rotation)
 
         # Save the results to the data object
-        participant_details[i]['right']['humerothoracic_rotation'] = total_right
-        participant_details[i]['left']['humerothoracic_rotation'] = total_left
+        participant_details[i].right.total_humerothoracic_rotation = total_right
+        participant_details[i].left.total_humerothoracic_rotation = total_left
         
         # save bin calcs tot he data object
 

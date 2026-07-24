@@ -7,6 +7,7 @@ import pytest
 import numpy as np
 
 from modules.data_loading import (
+    ArmRotationDetails,
     load_motion_capture_data, 
     load_participant_details
 )
@@ -55,7 +56,7 @@ class TestLoadParticipantDetails:
             participants = load_participant_details(filepath)
 
         mock_read_excel.assert_called_once_with(Path(filepath))
-        assert participants[0]["filename"] == "participant-a"
+        assert participants[0].filename == "participant-a"
 
     # RTSA side is derived from the pair of shoulder-flag columns.
     @pytest.mark.parametrize(
@@ -86,7 +87,7 @@ class TestLoadParticipantDetails:
             ]
         )
 
-        assert participants[0]["rtsa_side"] == expected
+        assert participants[0].rtsa_side == expected
 
     # TSA side uses the same mapping rules as RTSA.
     @pytest.mark.parametrize(
@@ -117,7 +118,7 @@ class TestLoadParticipantDetails:
             ]
         )
 
-        assert participants[0]["tsa_side"] == expected
+        assert participants[0].tsa_side == expected
 
     # Dominant arm is a hard validation: exactly one of the two flags must be set.
     @pytest.mark.parametrize(
@@ -143,7 +144,7 @@ class TestLoadParticipantDetails:
             ]
         )
 
-        assert participants[0]["dominant_arm"] == expected
+        assert participants[0].dominant_arm == expected
 
     @pytest.mark.parametrize(
         ("r_dom", "l_dom"),
@@ -196,8 +197,8 @@ class TestLoadParticipantDetails:
             ]
         )
 
-        assert participants[0]["filename"] == filename
-        assert participants[0]["age"] == age
+        assert participants[0].filename == filename
+        assert participants[0].age == age
 
     def test_should_initialize_nested_arm_rotation_fields_to_none(self):
         participants = _load_from_rows(
@@ -216,16 +217,16 @@ class TestLoadParticipantDetails:
         )
 
         participant = participants[0]
-        expected_arm_metrics = {
-            "humerothoracic_rotation": None,
-            "glenohumeral_rotation": None,
-            "total_rotation_x": None,
-            "total_rotation_y": None,
-            "total_rotation_z": None,
-        }
+        expected_arm_metrics = ArmRotationDetails(
+            total_humerothoracic_rotation=None,
+            total_glenohumeral_rotation=None,
+            total_rotation_x=None,
+            total_rotation_y=None,
+            total_rotation_z=None,
+        )
 
-        assert participant["left"] == expected_arm_metrics
-        assert participant["right"] == expected_arm_metrics
+        assert participant.left == expected_arm_metrics
+        assert participant.right == expected_arm_metrics
 
     @pytest.mark.parametrize("op_side", ["left", "right"])
     def test_should_allow_dynamic_side_access_for_arm_metrics(self, op_side):
@@ -244,10 +245,12 @@ class TestLoadParticipantDetails:
             ]
         )
 
+        
         participant = participants[0]
-        participant[op_side]["humerothoracic_rotation"] = 1.23
+        side_obj = getattr(participant, op_side)
+        side_obj.total_humerothoracic_rotation = 1.23
 
-        assert participant[op_side]["humerothoracic_rotation"] == 1.23
+        assert side_obj.total_humerothoracic_rotation == 1.23
 
     def test_should_use_independent_left_and_right_arm_dictionaries(self):
         participants = _load_from_rows(
@@ -266,10 +269,10 @@ class TestLoadParticipantDetails:
         )
 
         participant = participants[0]
-        participant["left"]["total_rotation_x"] = np.float64(2.5)
+        participant.left.total_rotation_x = np.float64(2.5)
 
-        assert participant["left"]["total_rotation_x"] == np.float64(2.5)
-        assert participant["right"]["total_rotation_x"] is None
+        assert participant.left.total_rotation_x == np.float64(2.5)
+        assert participant.right.total_rotation_x is None
 
     @pytest.mark.parametrize(
         ("rtsa_r", "rtsa_l", "tsa_r", "tsa_l"),
