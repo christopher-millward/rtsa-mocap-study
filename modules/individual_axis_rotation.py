@@ -67,9 +67,18 @@ def decompose_rotation_matrices_yxy(
     """Decompose relative rotations into Euler components using Y-X-Y sequence.
 
     This function will perform a batch decomposition of each 3x3 relative
-    rotation matrix into three Euler angles following the Y-X-Y convention,
-    returning one angle triplet per timestep transition.
+    rotation matrix into three Euler angles following the ISB-recommended 
+    Y-X-Y convention, returning one angle triplet per timestep transition.
 
+    Using the Y-X-Y convention allows us to map the following rotations to 
+    the anatomical axes of the arm (as per G. Wu et al (2005), Fig. 7):
+        - First Y: plane of elevation
+        - X: elevation
+        - Second Y: axial rotation
+
+    The lowercase 'yxy' sequence is used for intrinsic rotations, which allows
+    us to interpret the angles as rotations about the moving axes of the arm.
+    
     Args:
         relative_rotations (npt.NDArray[np.float64]): Relative rotation matrices
             with shape (n_steps, 3, 3).
