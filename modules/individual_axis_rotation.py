@@ -174,6 +174,12 @@ def get_bin_data(
             f"axis_index {axis_index} is out of bounds for data with {all_data.shape[1]} columns."
         )
 
+    # Make sure bin width is not zero
+    if bin_start >= bin_end:
+        raise ValueError(
+            f"bin_start {bin_start} must be less than bin_end {bin_end}."
+        )
+
     # Create a boolean mask for rows with the axis_index value within the bin range
     mask = (all_data[:, axis_index] >= bin_start) & (all_data[:, axis_index] < bin_end)
 
