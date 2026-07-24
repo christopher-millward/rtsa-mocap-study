@@ -13,7 +13,7 @@ from modules.cumulative_rotation import calculate_total_rotation
 from config import RAW_DATA_DIR, RESULTS_PATH
 
 # ---- Vars ----
-details_path = RAW_DATA_DIR / "participant_details.xlsx"
+details_path = Path(RAW_DATA_DIR) / "participant_details.xlsx"
 
 
 def main():
