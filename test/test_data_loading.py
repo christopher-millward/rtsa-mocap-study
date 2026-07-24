@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from pathlib import Path
 from unittest.mock import patch
 from config import RAW_DATA_DIR
@@ -5,17 +6,22 @@ from config import RAW_DATA_DIR
 import pandas as pd
 import pytest
 import numpy as np
+from typing import cast
 
 from modules.data_loading import (
     ArmRotationDetails,
-    load_motion_capture_data, 
+    RotationBins,
+    SingleBin,
+    load_motion_capture_data,
     load_participant_details
 )
 
-#---- Helper Functions ----
+# ---- Helper Functions ----
+
 def _frame(rows):
     """Build a DataFrame that mimics the Excel sheet structure."""
     return pd.DataFrame(rows)
+
 
 def _load_from_rows(rows):
     """Run the loader against an in-memory frame and return the parsed rows."""
@@ -220,9 +226,17 @@ class TestLoadParticipantDetails:
         expected_arm_metrics = ArmRotationDetails(
             total_humerothoracic_rotation=None,
             total_glenohumeral_rotation=None,
-            total_rotation_x=None,
-            total_rotation_y=None,
-            total_rotation_z=None,
+            rotation_bins=RotationBins(
+                rng_0_20=SingleBin(0, 20),
+                rng_20_40=SingleBin(20, 40),
+                rng_40_60=SingleBin(40, 60),
+                rng_60_80=SingleBin(60, 80),
+                rng_80_100=SingleBin(80, 100),
+                rng_100_120=SingleBin(100, 120),
+                rng_120_140=SingleBin(120, 140),
+                rng_140_160=SingleBin(140, 160),
+                rng_160_180=SingleBin(160, 180),
+            ),
         )
 
         assert participant.left == expected_arm_metrics
@@ -245,7 +259,6 @@ class TestLoadParticipantDetails:
             ]
         )
 
-        
         participant = participants[0]
         side_obj = getattr(participant, op_side)
         side_obj.total_humerothoracic_rotation = 1.23
@@ -269,10 +282,10 @@ class TestLoadParticipantDetails:
         )
 
         participant = participants[0]
-        participant.left.total_rotation_x = np.float64(2.5)
+        participant.left.total_glenohumeral_rotation = np.float64(2.5)
 
-        assert participant.left.total_rotation_x == np.float64(2.5)
-        assert participant.right.total_rotation_x is None
+        assert participant.left.total_glenohumeral_rotation == np.float64(2.5)
+        assert participant.right.total_glenohumeral_rotation is None
 
     @pytest.mark.parametrize(
         ("rtsa_r", "rtsa_l", "tsa_r", "tsa_l"),
@@ -331,10 +344,14 @@ class TestLoadMotionCaptureData:
     @pytest.mark.parametrize(
         ("filename", "data_dir"),
         [
-            pytest.param("participant-b.tsv", "./custom_dir", id="string-string"),
-            pytest.param(Path("participant-b.tsv"), Path("./custom_dir"), id="path-path"),
-            pytest.param(Path("participant-b.tsv"), "./custom_dir", id="path-string"),
-            pytest.param("participant-b.tsv", Path("./custom_dir"), id="string-path"),
+            pytest.param("participant-b.tsv",
+                         "./custom_dir", id="string-string"),
+            pytest.param(Path("participant-b.tsv"),
+                         Path("./custom_dir"), id="path-path"),
+            pytest.param(Path("participant-b.tsv"),
+                         "./custom_dir", id="path-string"),
+            pytest.param("participant-b.tsv",
+                         Path("./custom_dir"), id="string-path"),
         ],
     )
     def test_should_allow_custom_data_directory(self, filename, data_dir):

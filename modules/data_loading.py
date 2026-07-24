@@ -4,13 +4,60 @@ Functions for loading data.
 Author: Christopher Millward
 """
 
-from dataclasses import dataclass
-from typing import List, TypedDict, Literal, cast
+from dataclasses import dataclass, field
+from typing import List, TypedDict, Literal, cast, Tuple
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from pathlib import Path
 from config import RAW_DATA_DIR
+
+@dataclass()
+class SingleBin:
+    """Type definition for a single rotation bin.
+
+    Attributes:
+        min (int): The minimum value of the rotation bin.
+        max (int): The maximum value of the rotation bin.
+        elevation (np.float64 | None): The elevation of the rotation bin.
+        ir_er (np.float64 | None): The IR/ER value of the rotation bin.
+    """
+    min: int 
+    max: int
+    elevation: np.float64 | None = None
+    ir_er: np.float64 | None = None
+
+@dataclass
+class RotationBins:
+    """
+    Type definition for rotation bins.
+
+    A single bin has the attributes:
+        - min (int): The minimum value of the rotation bin.
+        - max (int): The maximum value of the rotation bin.
+        - elevation (np.float64 | None): The elevation of the rotation bin.
+        - ir_er (np.float64 | None): The IR/ER value of the rotation bin.
+
+    Attributes:
+        rng_0_20 (SingleBin): Rotation range 0-20 degrees.
+        rng_20_40 (SingleBin): Rotation range 20-40 degrees.
+        rng_40_60 (SingleBin): Rotation range 40-60 degrees.
+        rng_60_80 (SingleBin): Rotation range 60-80 degrees.
+        rng_80_100 (SingleBin): Rotation range 80-100 degrees.
+        rng_100_120 (SingleBin): Rotation range 100-120 degrees.
+        rng_120_140 (SingleBin): Rotation range 120-140 degrees.
+        rng_140_160 (SingleBin): Rotation range 140-160 degrees.
+        rng_160_180 (SingleBin): Rotation range 160-180 degrees.
+    """
+    rng_0_20: SingleBin = field(default_factory=lambda: SingleBin(0, 20))
+    rng_20_40: SingleBin = field(default_factory=lambda: SingleBin(20, 40))
+    rng_40_60: SingleBin = field(default_factory=lambda: SingleBin(40, 60))
+    rng_60_80: SingleBin = field(default_factory=lambda: SingleBin(60, 80))
+    rng_80_100: SingleBin = field(default_factory=lambda: SingleBin(80, 100))
+    rng_100_120: SingleBin = field(default_factory=lambda: SingleBin(100, 120))
+    rng_120_140: SingleBin = field(default_factory=lambda: SingleBin(120, 140))
+    rng_140_160: SingleBin = field(default_factory=lambda: SingleBin(140, 160))
+    rng_160_180: SingleBin = field(default_factory=lambda: SingleBin(160, 180))
 
 @dataclass
 class ArmRotationDetails():
@@ -19,16 +66,12 @@ class ArmRotationDetails():
     Attributes:
         total_humerothoracic_rotation (np.float64 | None): Description of metric.
         total_glenohumeral_rotation (np.float64 | None): Description of metric.
-        total_rotation_x (np.float64 | None): Description of metric.
-        total_rotation_y (np.float64 | None): Description of metric.
-        total_rotation_z (np.float64 | None): Description of metric.
+        rotation_bins (RotationBins | None): The rotation bins for the arm.
     """
 
     total_humerothoracic_rotation: np.float64 | None
     total_glenohumeral_rotation: np.float64 | None
-    total_rotation_x: np.float64 | None
-    total_rotation_y: np.float64 | None
-    total_rotation_z: np.float64 | None
+    rotation_bins: RotationBins
 
 @dataclass
 class ParticipantDetails():
@@ -147,16 +190,12 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
             left=ArmRotationDetails(
                 total_humerothoracic_rotation=None,
                 total_glenohumeral_rotation=None,
-                total_rotation_x=None,
-                total_rotation_y=None,
-                total_rotation_z=None,
+                rotation_bins=RotationBins(),
             ),
             right=ArmRotationDetails(
                 total_humerothoracic_rotation=None,
                 total_glenohumeral_rotation=None,
-                total_rotation_x=None,
-                total_rotation_y=None,
-                total_rotation_z=None,
+                rotation_bins=RotationBins(),
             ),
         )
 
