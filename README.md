@@ -222,6 +222,7 @@ Columns:
             - IR/ER
    - We would then label the arms op vs non-op and check for differences.
    - Create the same figures, but with total motion instead of %time. 
+   - NOTE: Do I want rotation binned by POE or by elevation? Or both? Need to think about this. 
 
 - Clean up README doc.
    - Add explanation of individual axis claclulations to mathematical foundation section
