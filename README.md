@@ -212,20 +212,28 @@ Columns:
 ---
 
 ## Next Steps / TODO
+- Change smallest tested angles to 1e-3. Anything smaller than that is not clinically relevant to a 10Hz sampling of older adults.
+
+- Calculate amount of motion about each axis
+  - Finish the "both arms" function.
+
+- Segment location binning (identify which region each frame is within (elev + POE))
+  - Use this to determine total magnitude
+
+- Clean up README doc.
+   - Add explanation of individual axis claclulations to mathematical foundation section
+
 - Visually confirm that axes align following axis transforms.
    - Waiting for Dan's confirmation.
    - If Dan confirms that all is correct, I think I should just plot the distribution of where the humerus spends most of its time (on a sphere) and see if it's reasonable. If it looks like any of the axes need to be reversed, I'll address it with Dan. 
+
 - (maybe) trim files.
    - Need to align axes first so I know which axes to plot for visual inspection of "dead" data.
-- Perform sensor drift audit.
-- Clean up README doc.
-- Calculate amount of motion about each axis
-  - Finish the "both arms" function.
-- Add orthonormality check to cumulative motion algorithm.
-- Add explanation of individual axis claclulations to README mathematical foundation section
-- Change smallest tested angles to 1e-3. Anything smaller than that is not clinically relevant to a 10Hz sampling of older adults.
-- Segment location binning (identify which region each frame is within (elev + POE))
-  - Use this to determine total magnitude
-- Build scapular correction module (can switch out module logic later)
+
+- (maybe) Perform sensor drift audit.
+
+- (maybe) build scapular correction module (can switch out module logic later)
+
 - Visualization functions (trajectories, heatmaps, statistical plots)
+
 - Statistical analysis and export
