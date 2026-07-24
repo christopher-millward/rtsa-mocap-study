@@ -10,18 +10,17 @@ from modules.individual_axis_rotation import (
     accumulate_euler_components,
     calculate_cumulative_axis_motion
 )
-
+from config import SMALLEST_CLINICALLY_RELEVANT_ANGLE as SMALL_ANGLE
 
 # ---- Global test variables ----
-small_angle = 1e-3
-tolerance = 1e-9
-singularity_tolerance = 1e-7
+PRECISION_TOLERANCE = 1e-9
+SINGULARITY_TOLERANCE = 1e-7
 
 
 # ---- Helper Functions ----
 def _is_rotation_matrix(R) -> bool:
     """Sanity check orthonormality."""
-    return np.allclose(R.T @ R, np.eye(3), atol=tolerance)
+    return np.allclose(R.T @ R, np.eye(3), atol=PRECISION_TOLERANCE)
 
 
 # ---- Tests ----
@@ -73,7 +72,7 @@ class TestComputeIncrementalRotationMatrices:
         deltas = compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (n_frames - 1, 3, 3)
         for D in deltas:
-            assert np.allclose(D, np.eye(3), atol=tolerance)
+            assert np.allclose(D, np.eye(3), atol=PRECISION_TOLERANCE)
 
     # Test that the function correctly computes the relative rotation.
     @pytest.mark.parametrize(
@@ -93,7 +92,7 @@ class TestComputeIncrementalRotationMatrices:
         deltas = compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (1, 3, 3)
         expected = R1 @ R0.T
-        assert np.allclose(deltas[0], expected, atol=tolerance)
+        assert np.allclose(deltas[0], expected, atol=PRECISION_TOLERANCE)
 
     # Test that the cumulative product of deltas reconstructs the original sequence.
     @pytest.mark.parametrize(
@@ -121,7 +120,7 @@ class TestComputeIncrementalRotationMatrices:
             reconstructed.append(reconstructed[-1] @ deltas[i])
         reconstructed = np.stack(reconstructed)
 
-        assert np.allclose(reconstructed, frames, atol=tolerance)
+        assert np.allclose(reconstructed, frames, atol=PRECISION_TOLERANCE)
 
     # Test that each delta is a valid rotation matrix (orthonormal with determinant 1).
     @pytest.mark.parametrize(
@@ -151,10 +150,10 @@ class TestComputeIncrementalRotationMatrices:
     @pytest.mark.parametrize(
         ("rotation_builder", "sequence", "angle"),
         [
-            pytest.param(R.from_euler, "X",  small_angle, id="small-x"),
-            pytest.param(R.from_euler, "Y", small_angle, id="small-y"),
-            pytest.param(R.from_euler, "Z", small_angle, id="small-z"),
-            pytest.param(R.from_euler, "YXY", [small_angle, small_angle, small_angle], id="small-yxy"),
+            pytest.param(R.from_euler, "X",  SMALL_ANGLE, id="small-x"),
+            pytest.param(R.from_euler, "Y", SMALL_ANGLE, id="small-y"),
+            pytest.param(R.from_euler, "Z", SMALL_ANGLE, id="small-z"),
+            pytest.param(R.from_euler, "YXY", [SMALL_ANGLE, SMALL_ANGLE, SMALL_ANGLE], id="small-yxy"),
             pytest.param(R.from_euler, "X",  np.pi / 2, id="large-x"),
             pytest.param(R.from_euler, "Y", np.pi * 0.75, id="large-y"),
             pytest.param(R.from_euler, "Z", np.pi * 0.9, id="large-z"),
@@ -251,7 +250,7 @@ class TestDecomposeRotationMatricesYXY:
         matrices = np.stack([R.from_euler("YXY", [a, b, c]).as_matrix()])
         angles = decompose_rotation_matrices_yxy(matrices)[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, matrices[0], atol=tolerance)
+        assert np.allclose(recomposed, matrices[0], atol=PRECISION_TOLERANCE)
 
     # Singularity: middle angle (X) near zero should still reconstruct
     @pytest.mark.parametrize("beta", [0.0, 1e-8])
@@ -260,7 +259,7 @@ class TestDecomposeRotationMatricesYXY:
         M = R.from_euler("YXY", [a, beta, c]).as_matrix()
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, M, atol=singularity_tolerance)
+        assert np.allclose(recomposed, M, atol=SINGULARITY_TOLERANCE)
 
     # Singularity: middle angle (X) near pi should still reconstruct
     def test_singularity_beta_near_pi(self):
@@ -269,7 +268,7 @@ class TestDecomposeRotationMatricesYXY:
         M = R.from_euler("YXY", [a, beta, c]).as_matrix()
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, M, atol=singularity_tolerance)
+        assert np.allclose(recomposed, M, atol=SINGULARITY_TOLERANCE)
 
     # Clipping robustness: tiny noise pushing values slightly outside [-1,1]
     def test_clipping_robustness(self):
@@ -279,7 +278,7 @@ class TestDecomposeRotationMatricesYXY:
         noisy += np.random.default_rng(1).normal(scale=1e-12, size=M.shape)
         angles = decompose_rotation_matrices_yxy(np.stack([noisy]))[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, M, atol=tolerance)
+        assert np.allclose(recomposed, M, atol=PRECISION_TOLERANCE)
 
     # Non-rotation matrices should raise ValueError
     def test_should_reject_non_rotation_matrices(self):
@@ -299,15 +298,15 @@ class TestDecomposeRotationMatricesYXY:
     @pytest.mark.parametrize(
         ("a", "b", "c"),
         [
-            pytest.param(small_angle, small_angle, -small_angle, id="tiny-angles"),
-            pytest.param(1.2, np.pi - small_angle, -0.9, id="large-middle"),
+            pytest.param(SMALL_ANGLE, SMALL_ANGLE, -SMALL_ANGLE, id="tiny-angles"),
+            pytest.param(1.2, np.pi - SMALL_ANGLE, -0.9, id="large-middle"),
         ],
     )
     def test_small_and_large_angle_sensitivity(self, a, b, c):
         M = R.from_euler("YXY", [a, b, c]).as_matrix()
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, M, atol=tolerance)
+        assert np.allclose(recomposed, M, atol=PRECISION_TOLERANCE)
 
 class TestAccumulateEulerComponents:
     # Test rejection of invalid shapes
@@ -370,8 +369,8 @@ class TestAccumulateEulerComponents:
                 id="all-zeros",
             ),
             pytest.param(
-                np.full((10000, 3), small_angle, dtype=np.float64),
-                (small_angle * 10000, small_angle * 10000, small_angle * 10000),
+                np.full((10000, 3), SMALL_ANGLE, dtype=np.float64),
+                (SMALL_ANGLE * 10000, SMALL_ANGLE * 10000, SMALL_ANGLE * 10000),
                 id="many-small-summands",
             ),
             pytest.param(
@@ -383,7 +382,7 @@ class TestAccumulateEulerComponents:
     )
     def test_should_return_expected_component_sums(self, matrix, expected):
         result = accumulate_euler_components(matrix)
-        assert result == pytest.approx(expected, rel=0, abs=tolerance)
+        assert result == pytest.approx(expected, rel=0, abs=PRECISION_TOLERANCE)
 
     # Test for correct output type and shape.
     def test_should_return_correct_type_and_shape(self):
