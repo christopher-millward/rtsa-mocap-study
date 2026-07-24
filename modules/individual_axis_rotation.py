@@ -113,6 +113,42 @@ def decompose_rotation_matrices_yxy(
     return np.asarray(euler_angles, dtype=np.float64)
 
 
+def get_bin_data(
+    all_data: npt.NDArray[np.float64],
+    bin_start: float,
+    bin_end: float,
+    axis_index: int,
+) -> npt.NDArray[np.float64]:
+    """Extract rows of data that fall within a specified bin range for a given axis.
+
+    Args:
+        all_data (npt.NDArray[np.float64]): Motion capture data with shape (n_frames, n_columns).
+        bin_start (float): Lower bound of the bin (inclusive).
+        bin_end (float): Upper bound of the bin (exclusive).
+        axis_index (int): Index of the column corresponding to the axis of interest.
+
+    Returns:
+        npt.NDArray[np.float64]: Subset of the original data that falls within the specified bin.
+    """
+    # Validate axis index
+    if axis_index < 0 or axis_index >= all_data.shape[1]:    
+        raise IndexError(
+            f"axis_index {axis_index} is out of bounds for data with {all_data.shape[1]} columns."
+        )
+
+    # Make sure bin width is not zero
+    if bin_start >= bin_end:
+        raise ValueError(
+            f"bin_start {bin_start} must be less than bin_end {bin_end}."
+        )
+
+    # Create a boolean mask for rows with the axis_index value within the bin range
+    mask = (all_data[:, axis_index] >= bin_start) & (all_data[:, axis_index] < bin_end)
+
+    # Return the subset of data that matches the mask
+    return all_data[mask]
+
+
 def accumulate_euler_components(
     euler_angles: npt.NDArray[np.float64],
 ) -> Tuple[float, float, float]:
@@ -150,43 +186,6 @@ def accumulate_euler_components(
     # Sum each column (component) across rows and convert to native floats
     sums = np.sum(all_components, axis=0)
     return (float(sums[0]), float(sums[1]), float(sums[2]))
-
-def get_bin_data(
-    all_data: npt.NDArray[np.float64],
-    bin_start: float,
-    bin_end: float,
-    axis_index: int,
-) -> npt.NDArray[np.float64]:
-    """Extract rows of data that fall within a specified bin range for a given axis.
-
-    Args:
-        all_data (npt.NDArray[np.float64]): Motion capture data with shape (n_frames, n_columns).
-        bin_start (float): Lower bound of the bin (inclusive).
-        bin_end (float): Upper bound of the bin (exclusive).
-        axis_index (int): Index of the column corresponding to the axis of interest.
-
-    Returns:
-        npt.NDArray[np.float64]: Subset of the original data that falls within the specified bin.
-    """
-    # Validate axis index
-    if axis_index < 0 or axis_index >= all_data.shape[1]:    
-        raise IndexError(
-            f"axis_index {axis_index} is out of bounds for data with {all_data.shape[1]} columns."
-        )
-
-    # Make sure bin width is not zero
-    if bin_start >= bin_end:
-        raise ValueError(
-            f"bin_start {bin_start} must be less than bin_end {bin_end}."
-        )
-
-    # Create a boolean mask for rows with the axis_index value within the bin range
-    mask = (all_data[:, axis_index] >= bin_start) & (all_data[:, axis_index] < bin_end)
-
-    # Return the subset of data that matches the mask
-    return all_data[mask]
-
-# Next: Sum cumulative axis motion (for one bin)
 
 
 def calculate_cumulative_axis_motion(
@@ -236,6 +235,8 @@ def calculate_cumulative_axis_motion(
 
     # Decompose relative rotations into Euler angles
     euler_angles = decompose_rotation_matrices_yxy(relative_rotations)
+
+    # 
 
     # Accumulate Euler components independently
     cumulative_components = accumulate_euler_components(euler_angles)
