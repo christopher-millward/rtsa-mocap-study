@@ -6,8 +6,9 @@ Author: Christopher Millward
 
 import numpy as np
 import numpy.typing as npt
-from typing import Tuple
+from typing import Literal, Tuple
 from scipy.spatial.transform import Rotation as R
+from modules.data_loading import RotationBins
 from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
 
@@ -125,7 +126,7 @@ def get_bin_data(
         all_data (npt.NDArray[np.float64]): Motion capture data with shape (n_frames, n_columns).
         bin_start (float): Lower bound of the bin (inclusive).
         bin_end (float): Upper bound of the bin (exclusive).
-        axis_index (int): Index of the column corresponding to the axis of interest.
+        axis_index (int): Index of the column corresponding to the axis of interest. 0 = POE, 1 = Elevation, 2 = IR/ER.
 
     Returns:
         npt.NDArray[np.float64]: Subset of the original data that falls within the specified bin.
@@ -188,6 +189,90 @@ def accumulate_euler_components(
     return (float(sums[0]), float(sums[1]), float(sums[2]))
 
 
+def sum_motion_in_one_bin(
+        data,
+        min,
+        max,
+        axis_index,
+):
+    """
+    Sum the elevation and IR/ER components independently for a given bin.
+
+    Args:
+        data (npt.NDArray[np.float64]): array of euler angles in the order (first_X, Y, second_Y) with shape (n_steps, 3)
+    """
+    raise NotImplementedError("This function is a placeholder and has not been implemented yet.")
+
+
+
+def calculate_motion_for_each_bin(
+        data: npt.NDArray[np.float64], 
+        arm: Literal['left', 'right']
+    ) -> RotationBins:
+    """Calculate the cumulative elevation and IR/ER in each bin for a given arm.
+
+    The bins are are defined in the RotationBins dataclass, ranging from 0-180 
+    in 20-degree increments. This function will iterate through each bin, extract 
+    the relevant rows of motion capture data, and sum the elevation and IR/ER components 
+    independently for that bin. It takes in the entire dataset, but only processes the 
+    data for one specified arm.
+
+    Args:
+        data (npt.NDArray[np.float64]): A 2D array with 18 numeric columns per row,
+            containing motion capture rotation data for both arms.
+        arm (str): Arm identifier, either 'left' or 'right'.
+    Returns:
+        data (RotationBins): A RotationBins object containing the cumulative sums for each bin.
+    """
+    # Validate arm
+    if arm not in ['left', 'right']:
+        raise ValueError(f"arm must be 'left' or 'right', got {arm}")
+
+    # Validate data shape
+    data_array = np.asarray(data, dtype=np.float64)
+    if data_array.ndim != 2 or data_array.shape[1] != 18:
+        raise ValueError(
+            'Data must be a 2D array with exactly 18 columns.'
+        )
+
+    # Validate data is not empty
+    if data_array.shape[0] == 0:
+        raise ValueError("Input data cannot be empty")
+        
+    # Create absolute rotation matrices for the specified arm
+    matrices = create_rotation_matrices(data_array, arm)
+
+    # Compute relative rotation matrices
+    relative_rotations = compute_incremental_rotation_matrices(matrices)
+
+    # Decompose relative rotations into Euler angles
+    euler_angles = decompose_rotation_matrices_yxy(relative_rotations)
+
+    # Loop through bins
+    data_holder = RotationBins()
+    for bin in data_holder.__dataclass_fields__.values():
+        if 'rng' in bin.name:
+            bin_object = getattr(data_holder, bin.name)
+
+            # get bin data
+            bin_data = get_bin_data(
+                all_data=euler_angles,
+                bin_start=bin_object.min,
+                bin_end=bin_object.max,
+                axis_index=0,  # Base on POE --- DECIDE WHAT I WANT TO BIN BY (OR BOTH)
+            )
+
+            # sum motion in the bin
+            # sum_motion_in_one_bin(euler_angles, bin_object)
+
+            # save to bin_object
+            # data_holder.bin_name = bin_object 
+
+    # return data holder with all the bins filled with cumulative sums
+    return data_holder
+
+
+# WILL END UP DELETING THIS FUNCTION
 def calculate_cumulative_axis_motion(
     data: npt.NDArray[np.float64],
     arm: str,
@@ -242,4 +327,3 @@ def calculate_cumulative_axis_motion(
     cumulative_components = accumulate_euler_components(euler_angles)
 
     return cumulative_components
-
