@@ -44,18 +44,19 @@ def main():
         # clean and validate data
         clean_data = clean_and_validate_data(raw_data)
 
-        # run analysis
         # cumulative rotation
+        # calculate
         total_right = calculate_total_rotation(clean_data, 'right')
         total_left = calculate_total_rotation(clean_data, 'left')
-
-        # rotation in each bin
-        # i.e., how much flex/ext in the range of 0-10 degrees, 10-20 degrees, etc.
-        # do this for each axis (flex/ext, abd/add, int/ext rotation)
-
-        # Save the results to the data object
+        # save
         participant_details[i].right.total_humerothoracic_rotation = total_right
         participant_details[i].left.total_humerothoracic_rotation = total_left
+
+
+        # rotation in each bin
+        # calculate
+        # save
+
         
         # save bin calcs tot he data object
 
