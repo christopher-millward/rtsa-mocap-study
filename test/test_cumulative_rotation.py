@@ -7,7 +7,6 @@ from modules.cumulative_rotation import (
     calculate_arm_rotations,
     calculate_rotation_angles,
     calculate_total_rotation,
-    create_rotation_matrices,
 )
 
 # ---- Helper Functions ----
@@ -66,10 +65,6 @@ def _rotation_matrix_xyz(
     rz = _rotation_matrix_z(z_angle)
 
     return rz @ ry @ rx
-
-def _is_rotation_matrix(R):
-    """Sanity check orthonormality."""
-    return np.allclose(R.T @ R, np.eye(3), atol=1e-8)
 
 
 class TestCalculateRotationAngles:

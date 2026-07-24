@@ -1,13 +1,6 @@
 import numpy as np
 import pytest
-from modules.general_utilities import (
-    create_rotation_matrices,
-)
-
-
-# ---- Global test variables ----
-small_angle = 1e-3
-singularity_tolerance = 1e-7
+from modules.general_utilities import create_rotation_matrices
 
 
 # ---- Tests ----
