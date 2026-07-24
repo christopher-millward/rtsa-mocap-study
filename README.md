@@ -212,7 +212,6 @@ Columns:
 ---
 
 ## Next Steps / TODO
-- Change smallest tested angles to 1e-3. Anything smaller than that is not clinically relevant to a 10Hz sampling of older adults.
 
 - Calculate amount of motion about each axis
   - Finish the "both arms" function.
