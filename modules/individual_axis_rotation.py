@@ -205,29 +205,3 @@ def calculate_cumulative_axis_motion(
 
     return cumulative_components
 
-
-# def calculate_cumulative_axis_motion_both_arms(
-#     data: npt.NDArray[np.float64],
-# ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
-#     """Calculate cumulative Y-X-Y component motion for left and right arms.
-
-#     This convenience wrapper calls the single-arm cumulative function for both
-#     arms and returns both results in one structure.
-
-#     Args:
-#         data (npt.NDArray[np.float64]): Motion capture table loaded via
-#             ``np.loadtxt`` with at least 18 columns.
-
-#     Returns:
-#         Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
-#             ``(left_components, right_components)``, where each inner tuple is
-#             the cumulative Y-X-Y component sums in radians.
-
-#     Raises:
-#         ValueError: If input validation fails for either arm.
-#     """
-#     # Call calculate_cumulative_axis_motion for arm='left'.
-#     # Call calculate_cumulative_axis_motion for arm='right'.
-#     # Return both tuples as (left_components, right_components).
-#     raise NotImplementedError
-
