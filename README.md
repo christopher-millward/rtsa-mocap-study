@@ -214,10 +214,14 @@ Columns:
 ## Next Steps / TODO
 
 - Calculate amount of motion about each axis
-  - Finish the "both arms" function.
-
-- Segment location binning (identify which region each frame is within (elev + POE))
-  - Use this to determine total magnitude
+   - Ok, so after some thinking, this doesn't make much sense. The difference between "flex/ext" is just a defined threshold for POE. If we were to do this, we would be setting cutoffs and creating bins to conditionally sum motion in each bin. Rather than just doing 2 bins, let's go more granular and create the same bins as in the Langohr et al (2018) paper. I think this would tell a much better story. We could then find clinical relevance by summing motion in different bins. 
+   - We should output:
+      - for each bin in range(0, 180, step=20):
+         - sum:
+            - elevation
+            - IR/ER
+   - We would then label the arms op vs non-op and check for differences.
+   - Create the same figures, but with total motion instead of %time. 
 
 - Clean up README doc.
    - Add explanation of individual axis claclulations to mathematical foundation section
