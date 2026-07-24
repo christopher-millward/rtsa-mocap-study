@@ -49,6 +49,8 @@ class RotationBins:
         rng_140_160 (SingleBin): Rotation range 140-160 degrees.
         rng_160_180 (SingleBin): Rotation range 160-180 degrees.
     """
+    range: tuple[int, int] = (0, 180)
+    step: int = 20
     rng_0_20: SingleBin = field(default_factory=lambda: SingleBin(0, 20))
     rng_20_40: SingleBin = field(default_factory=lambda: SingleBin(20, 40))
     rng_40_60: SingleBin = field(default_factory=lambda: SingleBin(40, 60))
