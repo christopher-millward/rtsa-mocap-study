@@ -174,9 +174,6 @@ def calculate_cumulative_axis_motion(
 
     Raises:
         ValueError: If input data is malformed or arm is invalid.
-
-    Reuse:
-        - Reuse ``create_rotation_matrices`` to extract 3x3 matrices per frame.
     """
 
     # Validate arm
