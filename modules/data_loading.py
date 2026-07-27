@@ -22,15 +22,15 @@ class Heatmap:
     by the bin_width, which must evenly divide 360 degrees.
 
     Attributes:
-        bin_width: Width of each heatmap bin in degrees.
-        elevation: Cumulative elevation motion.
-        poe: Cumulative plane-of-elevation motion.
-        ir_er: Cumulative internal/external rotation motion.
-        cumulative_motion: Total cumulative motion.
-        sample_count: Number of samples contributing to each bin.
+        bin_width (int): Width of each heatmap bin in degrees.
+        elevation (npt.NDArray[np.float64] | None): Cumulative elevation motion.
+        poe (npt.NDArray[np.float64] | None): Cumulative plane-of-elevation motion.
+        ir_er (npt.NDArray[np.float64] | None): Cumulative internal/external rotation motion.
+        cumulative_motion (npt.NDArray[np.float64] | None): Total cumulative motion.
+        sample_count (npt.NDArray[np.int32] | None): Number of samples contributing to each bin.
     """
 
-    bin_width: float = 20.0
+    bin_width: int = 20
 
     elevation: npt.NDArray[np.float64] | None = None
     poe: npt.NDArray[np.float64] | None = None
@@ -66,6 +66,12 @@ class Heatmap:
 
 @dataclass
 class RotationData:
+    """Type definition for rotation data.
+
+    Attributes:
+        trace_total (np.float64 | None): The total rotation for the arm.
+        heatmap (Heatmap): The heatmap for the arm.
+    """
     trace_total: np.float64 | None = None
     heatmap: Heatmap = field(default_factory=Heatmap)
 
