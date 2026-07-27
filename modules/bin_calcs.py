@@ -8,13 +8,13 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
-from typing import Literal
+from typing import Literal, NamedTuple
 from scipy.spatial.transform import Rotation as R
 from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
 
 @dataclass
-class PositionAngles():
+class PositionAngles(NamedTuple):
     """Absolute anatomical position angles in degrees."""
 
     poe: npt.NDArray[np.float64]
@@ -179,7 +179,73 @@ def decompose_rotation_matrices_yxy(
 
     return np.asarray(euler_angles, dtype=np.float64)
 
+def extract_bin_data(
+    mocap_data: npt.NDArray[np.float64],
+    postural_data: PositionAngles,
+    elevation_start: float,
+    elevation_end: float,
+    poe_start: float,
+    poe_end: float,
+) -> npt.NDArray[np.float64]:
+    """Extract rows of data that fall within a specified elevation and POE bin.
 
+    Args:
+        mocap_data (npt.NDArray[np.float64]): A series of R matrices with shape (n_frames, 3, 3) representing the relative rotation matrices for each frame.
+        
+        postural_data (PositionAngles): The position angles for each frame in shape (n_frames,). Expected columns:
+            0 = POE, 
+            1 = Elevation, 
+            2 = IR/ER.
+
+        elevation_start (float): Lower elevation bound (inclusive).
+        elevation_end (float): Upper elevation bound (exclusive).
+
+        poe_start (float): Lower POE bound (inclusive).
+        poe_end (float): Upper POE bound (exclusive).
+
+    Returns:
+        npt.NDArray[np.float64]: Subset of the original data that falls within
+        the specified elevation and POE bin.
+
+    Raises:
+        ValueError: If either bin has invalid bounds.
+        IndexError: If the input array does not contain enough columns.
+    """
+
+    # Validate input dimensions
+    # mocap data shape n, 3, 3
+    if mocap_data.shape[1:] != (3, 3):
+        raise ValueError("mocap_data must have shape (n_frames, 3, 3)")
+
+    # postural data needs 3 cols
+    if postural_data._fields != ('poe', 'elevation', 'ir_er'):
+        raise ValueError("postural_data must have fields 'poe', 'elevation', and 'ir_er'")
+
+    # Validate bin widths
+    if elevation_start >= elevation_end:
+        raise ValueError(
+            f"elevation_start {elevation_start} must be less than "
+            f"elevation_end {elevation_end}."
+        )
+
+    if poe_start >= poe_end:
+        raise ValueError(
+            f"poe_start {poe_start} must be less than poe_end {poe_end}."
+        )
+
+    # Create masks for both dimensions
+    elevation_mask = (
+        (postural_data.elevation >= elevation_start)
+        & (postural_data.elevation < elevation_end)
+    )
+
+    poe_mask = (
+        (postural_data.poe >= poe_start)
+        & (postural_data.poe < poe_end)
+    )
+
+    # Keep only rows satisfying both conditions
+    return mocap_data[elevation_mask & poe_mask]
 
 
 def calculate_bin_rotations(
@@ -209,13 +275,15 @@ def calculate_bin_rotations(
     # Create absolute rotation matrices for the specified arm
     matrices = create_rotation_matrices(data_array, arm)
 
-    # determine absolute position angles (elevation, poe, ir_er) for each frame
+    # determine postural position angles (elevation, poe, ir_er) for each frame
     absolute_angles = get_position_angles(matrices)
     absolute_angles = normalize_position_angles(absolute_angles)
 
     # compute relative motion between each frame
+    relative_matrices = compute_incremental_rotation_matrices(matrices)
 
     # decompose relative motion matrices into euler angles
+    euler_angles = decompose_rotation_matrices_yxy(relative_matrices)
 
     # for each bin:
         # extract bin boundaries
