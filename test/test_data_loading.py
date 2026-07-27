@@ -10,8 +10,6 @@ from typing import cast
 
 from modules.data_loading import (
     ArmRotationDetails,
-    RotationBins,
-    SingleBin,
     load_motion_capture_data,
     load_participant_details
 )
@@ -206,7 +204,7 @@ class TestLoadParticipantDetails:
         assert participants[0].filename == filename
         assert participants[0].age == age
 
-    def test_should_initialize_nested_arm_rotation_fields_to_none(self):
+    def test_should_initialize_nested_arm_rotation_details_to_none_and_zeros(self):
         participants = _load_from_rows(
             [
                 {
@@ -223,24 +221,17 @@ class TestLoadParticipantDetails:
         )
 
         participant = participants[0]
-        expected_arm_metrics = ArmRotationDetails(
-            total_humerothoracic_rotation=None,
-            total_glenohumeral_rotation=None,
-            rotation_bins=RotationBins(
-                rng_0_20=SingleBin(0, 20),
-                rng_20_40=SingleBin(20, 40),
-                rng_40_60=SingleBin(40, 60),
-                rng_60_80=SingleBin(60, 80),
-                rng_80_100=SingleBin(80, 100),
-                rng_100_120=SingleBin(100, 120),
-                rng_120_140=SingleBin(120, 140),
-                rng_140_160=SingleBin(140, 160),
-                rng_160_180=SingleBin(160, 180),
-            ),
-        )
+        left = participant.left.humerothoracic.heatmap
 
-        assert participant.left == expected_arm_metrics
-        assert participant.right == expected_arm_metrics
+        assert left.bin_width == 20
+        assert left.elevation is not None
+        assert left.poe is not None
+        assert left.ir_er is not None
+        assert left.sample_count is not None
+        np.testing.assert_array_equal(left.elevation, np.zeros((18, 18)))
+        np.testing.assert_array_equal(left.poe, np.zeros((18, 18)))
+        np.testing.assert_array_equal(left.ir_er, np.zeros((18, 18)))
+        np.testing.assert_array_equal(left.sample_count, np.zeros((18, 18), dtype=np.int64))
 
     @pytest.mark.parametrize("op_side", ["left", "right"])
     def test_should_allow_dynamic_side_access_for_arm_metrics(self, op_side):
@@ -260,10 +251,10 @@ class TestLoadParticipantDetails:
         )
 
         participant = participants[0]
-        side_obj = getattr(participant, op_side)
-        side_obj.total_humerothoracic_rotation = 1.23
+        side_obj: ArmRotationDetails = getattr(participant, op_side)
+        side_obj.humerothoracic.trace_total = np.float64(1.23)
 
-        assert side_obj.total_humerothoracic_rotation == 1.23
+        assert side_obj.humerothoracic.trace_total == 1.23
 
     def test_should_use_independent_left_and_right_arm_dictionaries(self):
         participants = _load_from_rows(
@@ -282,10 +273,10 @@ class TestLoadParticipantDetails:
         )
 
         participant = participants[0]
-        participant.left.total_glenohumeral_rotation = np.float64(2.5)
+        participant.left.glenohumeral.trace_total = np.float64(2.5)
 
-        assert participant.left.total_glenohumeral_rotation == np.float64(2.5)
-        assert participant.right.total_glenohumeral_rotation is None
+        assert participant.left.glenohumeral.trace_total == np.float64(2.5)
+        assert participant.right.glenohumeral.trace_total is None
 
     @pytest.mark.parametrize(
         ("rtsa_r", "rtsa_l", "tsa_r", "tsa_l"),
