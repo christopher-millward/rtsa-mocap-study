@@ -74,6 +74,9 @@ def normalize_position_angles(
     Elevation angles are normalized to the range [0, 180] degrees.
     """
 
+    if angles.poe is None or angles.elevation is None or angles.ir_er is None:
+        raise ValueError("All position angles must be provided for normalization.")
+
     return PositionAngles(
         poe=np.mod(angles.poe, 360.0),
         elevation=np.mod(np.abs(angles.elevation), 180.0),
@@ -220,6 +223,10 @@ def extract_bin_data(
     # postural data needs 3 cols
     if not isinstance(postural_data, PositionAngles):
         raise TypeError("postural_data must be a PositionAngles instance")
+
+    # postural data cannot be none
+    if postural_data.poe is None or postural_data.elevation is None:
+        raise ValueError("postural_data must have non-None poe and elevation arrays")
 
     # Validate bin widths
     if elevation_start >= elevation_end:
