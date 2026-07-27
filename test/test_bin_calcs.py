@@ -6,7 +6,8 @@ from modules.bin_calcs import (
     get_position_angles, 
     normalize_position_angles, 
     compute_incremental_rotation_matrices, 
-    decompose_rotation_matrices_yxy
+    decompose_rotation_matrices_yxy,
+    extract_bin_data
 )
 from config import (
     TEST_PRECISION_TOLERANCE, 
@@ -35,9 +36,9 @@ class TestGetPositionAngles:
                     ]
                 ),
                 PositionAngles(
-                    poe=np.array([0.0]),
-                    elevation=np.array([0.0]),
-                    ir_er=np.array([0.0]),
+                    poe=np.array([0.0], dtype=np.float64),
+                    elevation=np.array([0.0], dtype=np.float64),
+                    ir_er=np.array([0.0], dtype=np.float64),
                 ),
             ),
             (
@@ -88,6 +89,10 @@ class TestGetPositionAngles:
         """Test Euler angle decomposition from rotation matrices."""
 
         actual_angles = get_position_angles(rotation_matrices)
+        # appeasing the type checker since the dataclass allows None values
+        assert actual_angles.poe is not None
+        assert actual_angles.elevation is not None
+        assert actual_angles.ir_er is not None
 
         np.testing.assert_allclose(
             actual_angles.poe,
@@ -142,6 +147,11 @@ class TestNormalizePositionAngles:
 
         normalized_angles = normalize_position_angles(raw_angles)
 
+        # Assert no NoneTypes to appease the type checker
+        assert normalized_angles.poe is not None
+        assert normalized_angles.elevation is not None
+        assert normalized_angles.ir_er is not None
+
         np.testing.assert_array_equal(
             normalized_angles.poe,
             expected_angles.poe,
@@ -156,6 +166,7 @@ class TestNormalizePositionAngles:
             normalized_angles.ir_er,
             expected_angles.ir_er,
         )
+
 
         # Verify binning constraints
         assert np.all(normalized_angles.poe >= 0)
@@ -450,3 +461,155 @@ class TestDecomposeRotationMatricesYXY:
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
         assert np.allclose(recomposed, M, atol=TEST_PRECISION_TOLERANCE)
+
+class TestExtractBinData:
+
+    @pytest.fixture
+    def mocap_data(self) -> np.ndarray:
+        """
+        Create mock rotation matrices.
+
+        Each frame is unique so returned rows can be identified.
+        """
+        return np.array(
+            [
+                np.eye(3) * 1,
+                np.eye(3) * 2,
+                np.eye(3) * 3,
+                np.eye(3) * 4,
+                np.eye(3) * 5,
+            ],
+            dtype=np.float64,
+        )
+
+    @pytest.fixture
+    def postural_data(self) -> PositionAngles:
+        """
+        Postural data representing the starting position of each frame.
+
+        Columns:
+            poe
+            elevation
+            ir_er
+        """
+        return PositionAngles(
+            poe=np.array([10, 20, 30, 40, 50], dtype=np.float64),
+            elevation=np.array([10, 20, 30, 40, 50], dtype=np.float64),
+            ir_er=np.array([10, 20, 30, 40, 50], dtype=np.float64),
+        )
+
+    def test_returns_only_frames_inside_requested_bin(
+        self,
+        mocap_data,
+        postural_data,
+    ):
+        """Returns frames where both elevation and POE fall inside the bin."""
+
+        result = extract_bin_data(
+            mocap_data,
+            postural_data,
+            elevation_start=15,
+            elevation_end=45,
+            poe_start=15,
+            poe_end=45,
+        )
+
+        expected = np.array(
+            [
+                np.eye(3) * 2,
+                np.eye(3) * 3,
+                np.eye(3) * 4,
+            ],
+            dtype=np.float64,
+        )
+
+        np.testing.assert_array_equal(result, expected)
+
+    def test_lower_bounds_are_inclusive_and_upper_bounds_are_exclusive(
+        self,
+        mocap_data,
+        postural_data,
+    ):
+        """Frames exactly at the lower bound are included, and frames exactly at the upper bound are excluded."""
+
+        result = extract_bin_data(
+            mocap_data,
+            postural_data,
+            elevation_start=20,
+            elevation_end=40,
+            poe_start=20,
+            poe_end=40,
+        )
+
+        expected = np.array(
+            [
+                np.eye(3) * 2,
+                np.eye(3) * 3,
+            ],
+            dtype=np.float64,
+        )
+
+        np.testing.assert_array_equal(result, expected)
+
+
+    @pytest.mark.parametrize(
+        "elevation_start,elevation_end,poe_start,poe_end",
+        [
+            (20, 20, 0, 10),
+            (30, 20, 0, 10),
+            (0, 10, 10, 10),
+            (0, 10, 20, 10),
+        ],
+    )
+    def test_invalid_bin_bounds_raise_value_error(
+        self,
+        mocap_data,
+        postural_data,
+        elevation_start,
+        elevation_end,
+        poe_start,
+        poe_end,
+    ):
+        with pytest.raises(ValueError):
+            extract_bin_data(
+                mocap_data,
+                postural_data,
+                elevation_start,
+                elevation_end,
+                poe_start,
+                poe_end,
+            )
+
+    def test_returns_empty_array_when_no_frames_match(
+        self,
+        mocap_data,
+        postural_data,
+    ):
+        result = extract_bin_data(
+            mocap_data,
+            postural_data,
+            elevation_start=100,
+            elevation_end=120,
+            poe_start=100,
+            poe_end=120,
+        )
+
+        assert result.shape == (0, 3, 3)
+
+    def test_does_not_modify_original_data(
+        self,
+        mocap_data,
+        postural_data,
+    ):
+        original = mocap_data.copy()
+
+        extract_bin_data(
+            mocap_data,
+            postural_data,
+            elevation_start=0,
+            elevation_end=90,
+            poe_start=0,
+            poe_end=90,
+        )
+
+        np.testing.assert_array_equal(mocap_data, original)
