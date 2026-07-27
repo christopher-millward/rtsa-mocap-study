@@ -14,12 +14,12 @@ from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
 
 @dataclass
-class PositionAngles(NamedTuple):
+class PositionAngles:
     """Absolute anatomical position angles in degrees."""
 
-    poe: npt.NDArray[np.float64]
-    elevation: npt.NDArray[np.float64]
-    ir_er: npt.NDArray[np.float64]
+    poe: npt.NDArray[np.float64] | None = None
+    elevation: npt.NDArray[np.float64] | None = None
+    ir_er: npt.NDArray[np.float64] | None = None
 
 
 def get_position_angles(
@@ -218,8 +218,8 @@ def extract_bin_data(
         raise ValueError("mocap_data must have shape (n_frames, 3, 3)")
 
     # postural data needs 3 cols
-    if postural_data._fields != ('poe', 'elevation', 'ir_er'):
-        raise ValueError("postural_data must have fields 'poe', 'elevation', and 'ir_er'")
+    if not isinstance(postural_data, PositionAngles):
+        raise TypeError("postural_data must be a PositionAngles instance")
 
     # Validate bin widths
     if elevation_start >= elevation_end:
