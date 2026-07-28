@@ -6,9 +6,9 @@ import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
 from typing import Any, cast
+from modules.bin_calcs import calculate_bin_rotations
 from modules.data_loading import load_participant_details, load_motion_capture_data
 from modules.data_preprocessing import clean_and_validate_data
-from modules.general_utilities import create_rotation_matrices
 from modules.cumulative_rotation import calculate_total_rotation
 from config import RAW_DATA_DIR, RESULTS_PATH
 
@@ -55,11 +55,22 @@ def main():
 
         # rotation in each bin
         # calculate
+        right_bin_calcs = calculate_bin_rotations(clean_data, 'right')
+        left_bin_calcs = calculate_bin_rotations(clean_data, 'left')
         # save
+        participant_details[i].right.humerothoracic.heatmap = right_bin_calcs
+        participant_details[i].left.humerothoracic.heatmap = left_bin_calcs
 
-        
-        # save bin calcs tot he data object
 
+
+    """
+    We have an error here with the saving because all of the data is nested. 
+    The following operations will have to be performed:
+        - Save the entire data object as a pickle file for easier loading directly into python.
+        - Flatten the data object into separate entities (details, heatmap, etc.) and save each
+        as either a separate CSV or a parquet.
+    """
+    
     # write data object to a CSV file
     df = pd.json_normalize(
         cast(list[dict[str, Any]], participant_details),
