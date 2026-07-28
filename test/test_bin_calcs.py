@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation as R
 from modules.bin_calcs import (
-    PositionAngles, 
+    PositionAngles,
+    accumulate_euler_components, 
     get_position_angles, 
     normalize_position_angles, 
     compute_incremental_rotation_matrices, 
@@ -607,3 +608,100 @@ class TestExtractBinData:
         )
 
         np.testing.assert_array_equal(relative_rotations, original)
+
+
+class TestAccumulateEulerComponents:
+    @pytest.mark.parametrize(
+        "euler_angles, expected",
+        [
+            (
+                np.array(
+                    [
+                        [1.0, 2.0, 3.0],
+                        [4.0, 5.0, 6.0],
+                        [7.0, 8.0, 9.0],
+                    ]
+                ),
+                (12.0, 15.0, 18.0),
+            ),
+            (
+                np.array(
+                    [
+                        [10.5, 20.5, 30.5],
+                    ]
+                ),
+                (10.5, 20.5, 30.5),
+            ),
+            (
+                np.zeros((4, 3)),
+                (0.0, 0.0, 0.0),
+            ),
+        ],
+    )
+    def test_returns_componentwise_sums(self, euler_angles, expected):
+        """Returns the cumulative sum of each Euler component."""
+        result = accumulate_euler_components(euler_angles)
+
+        assert result == pytest.approx(expected)
+
+    def test_negative_values_are_summed_by_absolute_value(self):
+        """Negative values are converted to absolute values before summing."""
+
+        euler_angles = np.array(
+            [
+                [-1.0, 2.0, -3.0],
+                [4.0, -5.0, 6.0],
+            ]
+        )
+
+        expected = (5.0, 7.0, 9.0)
+        result = accumulate_euler_components(euler_angles)
+
+        assert result == expected
+
+    def test_integer_input_still_outputs_float_values(self):
+        """Integer arrays are accepted and correctly summed."""
+
+        euler_angles = np.array(
+            [
+                [1, 2, 3],
+                [4, 5, 6],
+            ],
+            dtype=np.int32,
+        )
+        expected = (5.0, 7.0, 9.0)
+
+        result = accumulate_euler_components(euler_angles)  # type: ignore[arg-type]
+
+        assert result == pytest.approx((5.0, 7.0, 9.0))
+
+    @pytest.mark.parametrize(
+        "invalid_shape",
+        [
+            np.array([]),
+            np.array([1.0, 2.0, 3.0]),          # 1D
+            np.array([[1.0, 2.0]]),             # 2 columns
+            np.array([[1.0, 2.0, 3.0, 4.0]]),   # 4 columns
+            np.zeros((2, 2, 3)),                # 3D
+        ],
+    )
+    def test_raises_for_invalid_shape(self, invalid_shape):
+        """Raises ValueError when input is not shaped (n_steps, 3)."""
+
+        with pytest.raises(
+            ValueError,
+            match="euler_angles must have shape \\(n_steps, 3\\)",
+        ):
+            accumulate_euler_components(invalid_shape)
+
+    def test_raises_for_empty_input(self):
+        """Raises ValueError when no rows are provided."""
+
+        euler_angles = np.empty((0, 3), dtype=np.float64)
+
+        with pytest.raises(
+            ValueError,
+            match="euler_angles must contain at least one row",
+        ):
+            accumulate_euler_components(euler_angles)
+
