@@ -118,16 +118,3 @@ class ParticipantDetails():
     age: int
     left: ArmRotationDetails
     right: ArmRotationDetails
-
-
-# ----------------------------
-# Specific to bin calculations
-# ----------------------------
-@dataclass
-class PosturalAngles:
-    """Anatomical posture angles in degrees."""
-
-    poe: npt.NDArray[np.float64] | None = None
-    elevation: npt.NDArray[np.float64] | None = None
-    ir_er: npt.NDArray[np.float64] | None = None
-
