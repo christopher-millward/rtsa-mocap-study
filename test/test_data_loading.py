@@ -224,14 +224,10 @@ class TestLoadParticipantDetails:
         left = participant.left.humerothoracic.heatmap
 
         assert left.bin_width == 20
-        assert left.elevation is not None
-        assert left.poe is not None
-        assert left.ir_er is not None
-        assert left.sample_count is not None
-        np.testing.assert_array_equal(left.elevation, np.zeros((18, 18)))
-        np.testing.assert_array_equal(left.poe, np.zeros((18, 18)))
-        np.testing.assert_array_equal(left.ir_er, np.zeros((18, 18)))
-        np.testing.assert_array_equal(left.sample_count, np.zeros((18, 18), dtype=np.int64))
+        np.testing.assert_array_equal(left.elevation, np.empty((0, 0)))
+        np.testing.assert_array_equal(left.poe, np.empty((0, 0)))
+        np.testing.assert_array_equal(left.ir_er, np.empty((0, 0)))
+        np.testing.assert_array_equal(left.sample_count, np.empty((0, 0), dtype=np.int64))
 
     @pytest.mark.parametrize("op_side", ["left", "right"])
     def test_should_allow_dynamic_side_access_for_arm_metrics(self, op_side):

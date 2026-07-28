@@ -23,22 +23,30 @@ class Heatmap:
 
     Attributes:
         bin_width (int): Width of each heatmap bin in degrees.
-        elevation (npt.NDArray[np.float64] | None): Cumulative elevation motion.
-        poe (npt.NDArray[np.float64] | None): Cumulative plane-of-elevation motion.
-        ir_er (npt.NDArray[np.float64] | None): Cumulative internal/external rotation motion.
-        cumulative_motion (npt.NDArray[np.float64] | None): Total cumulative motion.
-        sample_count (npt.NDArray[np.int32] | None): Number of samples contributing to each bin.
+        elevation (npt.NDArray[np.float64]): Cumulative elevation motion.
+        poe (npt.NDArray[np.float64]): Cumulative plane-of-elevation motion.
+        ir_er (npt.NDArray[np.float64]): Cumulative internal/external rotation motion.
+        cumulative_motion (npt.NDArray[np.float64]): Total cumulative motion.
+        sample_count (npt.NDArray[np.int32]): Number of samples contributing to each bin.
     """
 
     bin_width: int = 20
 
-    elevation: npt.NDArray[np.float64] | None = None
-    poe: npt.NDArray[np.float64] | None = None
-    ir_er: npt.NDArray[np.float64] | None = None
-
-    cumulative_motion: npt.NDArray[np.float64] | None = None
-
-    sample_count: npt.NDArray[np.int32] | None = None
+    elevation: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+    poe: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+    ir_er: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+    cumulative_motion: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+    sample_count: npt.NDArray[np.int32] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.int32)
+    )
 
     def __post_init__(self) -> None:
         if 360 % self.bin_width != 0:
@@ -46,23 +54,6 @@ class Heatmap:
                 f"bin_width ({self.bin_width}) must evenly divide 360."
             )
 
-        n_bins = int(360 / self.bin_width)
-        shape = (n_bins, n_bins)
-
-        if self.elevation is None:
-            self.elevation = np.zeros(shape, dtype=np.float64)
-
-        if self.poe is None:
-            self.poe = np.zeros(shape, dtype=np.float64)
-
-        if self.ir_er is None:
-            self.ir_er = np.zeros(shape, dtype=np.float64)
-
-        if self.cumulative_motion is None:
-            self.cumulative_motion = np.zeros(shape, dtype=np.float64)
-
-        if self.sample_count is None:
-            self.sample_count = np.zeros(shape, dtype=np.int32)
 
 @dataclass
 class RotationData:
