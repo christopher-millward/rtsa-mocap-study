@@ -12,68 +12,94 @@ import pandas as pd
 from pathlib import Path
 from config import RAW_DATA_DIR
 
-@dataclass()
-class SingleBin:
-    """Type definition for a single rotation bin.
+@dataclass(slots=True)
+class Heatmap:
+    """
+    Type definition for a heatmap.
+
+    Each of elevation, poe, and ir_er is a 2D array representing the cumulative 
+    motion in each bin of the heatmap. The shape of these arrays is determined 
+    by the bin_width, which must evenly divide 360 degrees.
 
     Attributes:
-        min (int): The minimum value of the rotation bin.
-        max (int): The maximum value of the rotation bin.
-        elevation (np.float64 | None): The elevation of the rotation bin.
-        ir_er (np.float64 | None): The IR/ER value of the rotation bin.
+        bin_width (int): Width of each heatmap bin in degrees.
+        elevation (npt.NDArray[np.float64]): Cumulative elevation motion.
+        poe (npt.NDArray[np.float64]): Cumulative plane-of-elevation motion.
+        ir_er (npt.NDArray[np.float64]): Cumulative internal/external rotation motion.
+        cumulative_motion (npt.NDArray[np.float64]): Total cumulative motion.
+        sample_count (npt.NDArray[np.int32]): Number of samples contributing to each bin.
     """
-    min: int 
-    max: int
-    elevation: np.float64 | None = None
-    ir_er: np.float64 | None = None
+
+    bin_width: int = 20
+    elevation_range_end: int = 180
+    poe_range_end: int = 360
+
+    elevation: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+    poe: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+    ir_er: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+    cumulative_motion: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+    sample_count: npt.NDArray[np.int32] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.int32)
+    )
+
+    def __post_init__(self) -> None:
+        if self.elevation_range_end % self.bin_width != 0:
+            raise ValueError(
+                f"bin_width ({self.bin_width}) must evenly divide {self.elevation_range_end}."
+            )
+
+        if self.poe_range_end % self.bin_width != 0:
+            raise ValueError(
+                f"bin_width ({self.bin_width}) must evenly divide {self.poe_range_end}."
+            )
+        
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Heatmap):
+            return NotImplemented
+
+        return (
+            self.bin_width == other.bin_width
+            and self.elevation_range_end == other.elevation_range_end
+            and self.poe_range_end == other.poe_range_end
+            and np.array_equal(self.elevation, other.elevation)
+            and np.array_equal(self.poe, other.poe)
+            and np.array_equal(self.ir_er, other.ir_er)
+            and np.array_equal(self.cumulative_motion, other.cumulative_motion)
+            and np.array_equal(self.sample_count, other.sample_count)
+        )
+
 
 @dataclass
-class RotationBins:
-    """
-    Type definition for rotation bins.
-
-    A single bin has the attributes:
-        - min (int): The minimum value of the rotation bin.
-        - max (int): The maximum value of the rotation bin.
-        - elevation (np.float64 | None): The elevation of the rotation bin.
-        - ir_er (np.float64 | None): The IR/ER value of the rotation bin.
+class RotationData:
+    """Type definition for rotation data.
 
     Attributes:
-        rng_0_20 (SingleBin): Rotation range 0-20 degrees.
-        rng_20_40 (SingleBin): Rotation range 20-40 degrees.
-        rng_40_60 (SingleBin): Rotation range 40-60 degrees.
-        rng_60_80 (SingleBin): Rotation range 60-80 degrees.
-        rng_80_100 (SingleBin): Rotation range 80-100 degrees.
-        rng_100_120 (SingleBin): Rotation range 100-120 degrees.
-        rng_120_140 (SingleBin): Rotation range 120-140 degrees.
-        rng_140_160 (SingleBin): Rotation range 140-160 degrees.
-        rng_160_180 (SingleBin): Rotation range 160-180 degrees.
+        trace_total (np.float64 | None): The total rotation for the arm.
+        heatmap (Heatmap): The heatmap for the arm.
     """
-    range: tuple[int, int] = (0, 180)
-    step: int = 20
-    rng_0_20: SingleBin = field(default_factory=lambda: SingleBin(0, 20))
-    rng_20_40: SingleBin = field(default_factory=lambda: SingleBin(20, 40))
-    rng_40_60: SingleBin = field(default_factory=lambda: SingleBin(40, 60))
-    rng_60_80: SingleBin = field(default_factory=lambda: SingleBin(60, 80))
-    rng_80_100: SingleBin = field(default_factory=lambda: SingleBin(80, 100))
-    rng_100_120: SingleBin = field(default_factory=lambda: SingleBin(100, 120))
-    rng_120_140: SingleBin = field(default_factory=lambda: SingleBin(120, 140))
-    rng_140_160: SingleBin = field(default_factory=lambda: SingleBin(140, 160))
-    rng_160_180: SingleBin = field(default_factory=lambda: SingleBin(160, 180))
+    trace_total: np.float64 | None = None
+    heatmap: Heatmap = field(default_factory=Heatmap)
 
 @dataclass
 class ArmRotationDetails():
     """Type definition for per-arm rotation summary metrics.
 
     Attributes:
-        total_humerothoracic_rotation (np.float64 | None): Description of metric.
-        total_glenohumeral_rotation (np.float64 | None): Description of metric.
+        trace_total (np.float64 | None): The total rotation for the arm.
         rotation_bins (RotationBins | None): The rotation bins for the arm.
     """
 
-    total_humerothoracic_rotation: np.float64 | None
-    total_glenohumeral_rotation: np.float64 | None
-    rotation_bins: RotationBins
+    humerothoracic: RotationData = field(default_factory=RotationData)
+    glenohumeral: RotationData = field(default_factory=RotationData)
+
 
 @dataclass
 class ParticipantDetails():
@@ -190,14 +216,12 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
             dominant_arm=dominant_arm,
             age=cast(int, row.get('Age')),
             left=ArmRotationDetails(
-                total_humerothoracic_rotation=None,
-                total_glenohumeral_rotation=None,
-                rotation_bins=RotationBins(),
+                humerothoracic=RotationData(),
+                glenohumeral=RotationData(),
             ),
             right=ArmRotationDetails(
-                total_humerothoracic_rotation=None,
-                total_glenohumeral_rotation=None,
-                rotation_bins=RotationBins(),
+                humerothoracic=RotationData(),
+                glenohumeral=RotationData(),
             ),
         )
 

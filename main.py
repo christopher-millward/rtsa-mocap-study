@@ -49,8 +49,8 @@ def main():
         total_right = calculate_total_rotation(clean_data, 'right')
         total_left = calculate_total_rotation(clean_data, 'left')
         # save
-        participant_details[i].right.total_humerothoracic_rotation = total_right
-        participant_details[i].left.total_humerothoracic_rotation = total_left
+        participant_details[i].right.humerothoracic.trace_total = total_right
+        participant_details[i].left.humerothoracic.trace_total = total_left
 
 
         # rotation in each bin
