@@ -465,19 +465,18 @@ class TestDecomposeRotationMatricesYXY:
 class TestExtractBinData:
 
     @pytest.fixture
-    def mocap_data(self) -> np.ndarray:
+    def relative_rotations(self) -> np.ndarray:
         """
-        Create mock rotation matrices.
+        Create mock relative rotation matrices.
 
-        Each frame is unique so returned rows can be identified.
+        Each matrix is unique so it is obvious which transitions were selected.
         """
         return np.array(
             [
-                np.eye(3) * 1,
-                np.eye(3) * 2,
-                np.eye(3) * 3,
-                np.eye(3) * 4,
-                np.eye(3) * 5,
+                np.eye(3) * 10,  # transition 0 -> 1
+                np.eye(3) * 20,  # transition 1 -> 2
+                np.eye(3) * 30,  # transition 2 -> 3
+                np.eye(3) * 40,  # transition 3 -> 4
             ],
             dtype=np.float64,
         )
@@ -485,12 +484,7 @@ class TestExtractBinData:
     @pytest.fixture
     def postural_data(self) -> PositionAngles:
         """
-        Postural data representing the starting position of each frame.
-
-        Columns:
-            poe
-            elevation
-            ir_er
+        Postural data representing the starting position of each relative rotation.
         """
         return PositionAngles(
             poe=np.array([10, 20, 30, 40, 50], dtype=np.float64),
@@ -498,16 +492,17 @@ class TestExtractBinData:
             ir_er=np.array([10, 20, 30, 40, 50], dtype=np.float64),
         )
 
+
     def test_returns_only_frames_inside_requested_bin(
         self,
-        mocap_data,
+        relative_rotations,
         postural_data,
     ):
-        """Returns frames where both elevation and POE fall inside the bin."""
+        """Returns relative rotations where both elevation and POE fall inside the bin."""
 
         result = extract_bin_data(
-            mocap_data,
-            postural_data,
+            mocap_data=relative_rotations,
+            postural_data=postural_data,
             elevation_start=15,
             elevation_end=45,
             poe_start=15,
@@ -516,9 +511,9 @@ class TestExtractBinData:
 
         expected = np.array(
             [
-                np.eye(3) * 2,
-                np.eye(3) * 3,
-                np.eye(3) * 4,
+                np.eye(3) * 20,
+                np.eye(3) * 30,
+                np.eye(3) * 40,
             ],
             dtype=np.float64,
         )
@@ -527,13 +522,13 @@ class TestExtractBinData:
 
     def test_lower_bounds_are_inclusive_and_upper_bounds_are_exclusive(
         self,
-        mocap_data,
+        relative_rotations,
         postural_data,
     ):
         """Frames exactly at the lower bound are included, and frames exactly at the upper bound are excluded."""
 
         result = extract_bin_data(
-            mocap_data,
+            relative_rotations,
             postural_data,
             elevation_start=20,
             elevation_end=40,
@@ -543,14 +538,13 @@ class TestExtractBinData:
 
         expected = np.array(
             [
-                np.eye(3) * 2,
-                np.eye(3) * 3,
+                np.eye(3) * 20,
+                np.eye(3) * 30,
             ],
             dtype=np.float64,
         )
 
         np.testing.assert_array_equal(result, expected)
-
 
     @pytest.mark.parametrize(
         "elevation_start,elevation_end,poe_start,poe_end",
@@ -563,7 +557,7 @@ class TestExtractBinData:
     )
     def test_invalid_bin_bounds_raise_value_error(
         self,
-        mocap_data,
+        relative_rotations,
         postural_data,
         elevation_start,
         elevation_end,
@@ -572,7 +566,7 @@ class TestExtractBinData:
     ):
         with pytest.raises(ValueError):
             extract_bin_data(
-                mocap_data,
+                relative_rotations,
                 postural_data,
                 elevation_start,
                 elevation_end,
@@ -582,11 +576,11 @@ class TestExtractBinData:
 
     def test_returns_empty_array_when_no_frames_match(
         self,
-        mocap_data,
+        relative_rotations,
         postural_data,
     ):
         result = extract_bin_data(
-            mocap_data,
+            relative_rotations,
             postural_data,
             elevation_start=100,
             elevation_end=120,
@@ -598,13 +592,13 @@ class TestExtractBinData:
 
     def test_does_not_modify_original_data(
         self,
-        mocap_data,
+        relative_rotations,
         postural_data,
     ):
-        original = mocap_data.copy()
+        original = relative_rotations.copy()
 
         extract_bin_data(
-            mocap_data,
+            relative_rotations,
             postural_data,
             elevation_start=0,
             elevation_end=90,
@@ -612,4 +606,4 @@ class TestExtractBinData:
             poe_end=90,
         )
 
-        np.testing.assert_array_equal(mocap_data, original)
+        np.testing.assert_array_equal(relative_rotations, original)
