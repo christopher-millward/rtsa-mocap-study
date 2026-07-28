@@ -10,6 +10,7 @@ import numpy as np
 import numpy.typing as npt
 from typing import Literal, Tuple
 from scipy.spatial.transform import Rotation as R
+from modules.data_loading import Heatmap
 from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
 
@@ -298,7 +299,6 @@ def accumulate_euler_components(
 
     return (sums[0], sums[1], sums[2])
 
-
 def calculate_bin_rotations(
         data: npt.NDArray[np.float64], 
         arm: Literal['left', 'right']
@@ -327,8 +327,8 @@ def calculate_bin_rotations(
     matrices = create_rotation_matrices(data_array, arm)
 
     # determine postural position angles (elevation, poe, ir_er) for each frame
-    absolute_angles = get_position_angles(matrices)
-    absolute_angles = normalize_position_angles(absolute_angles)
+    postural_angles = get_position_angles(matrices)
+    postural_angles = normalize_position_angles(postural_angles)
 
     # compute relative motion between each frame
     relative_matrices = compute_incremental_rotation_matrices(matrices)
@@ -336,18 +336,53 @@ def calculate_bin_rotations(
     # decompose relative motion matrices into euler angles
     euler_angles = decompose_rotation_matrices_yxy(relative_matrices)
 
-    # for each bin:
-        # extract bin boundaries
-        # filter extract only data within the bin boundaries
-            # create bin mask based ont he absolute position angles
-                # base it on start position
-            # use the mask to return only the data within the bin boundaries
-        # sum motion in each axis for the bin
-        # save the bin calcs to the data object
+    # initialize a data object to hold the bin calculations
+    data_object = Heatmap()
+
+    # for each bin
+    for elevation_range_start in range(0, 180, int(data_object.bin_width)):
+
+        for poe_range_start in range(0, 360, int(data_object.bin_width)):
+            # extract bin boundaries
+            elevation_start = elevation_range_start
+            elevation_end = elevation_range_start + data_object.bin_width
+            poe_start = poe_range_start
+            poe_end = poe_range_start + data_object.bin_width
+
+            # filter extract only data within the bin boundaries
+            bin_data = extract_bin_data(
+                mocap_data=relative_matrices, 
+                postural_data=postural_angles, 
+                elevation_start=elevation_start, 
+                elevation_end=elevation_end, 
+                poe_start=poe_start, 
+                poe_end=poe_end
+            )
+
+            # return zero values if no data in the bin
+            if bin_data.shape[0] == 0:
+                data_object.elevation = np.append(data_object.elevation, 0)
+                data_object.poe = np.append(data_object.poe, 0)
+                data_object.ir_er = np.append(data_object.ir_er, 0)
+                data_object.cumulative_motion = np.append(data_object.cumulative_motion, 0)
+                data_object.sample_count = np.append(data_object.sample_count, 0)
+                continue
+            # else, decompose the bin data into euler angles
+            else:
+                euler_angles = decompose_rotation_matrices_yxy(bin_data)
+
+                # Calculate totals
+                total_elevation, total_poe, total_irer = accumulate_euler_components(euler_angles)
+                total_motion = total_elevation + total_poe + total_irer
+                n_samples = bin_data.shape[0]
+            
+                # save the bin calcs to the data object
+                data_object.elevation = np.append(data_object.elevation, total_elevation)
+                data_object.poe = np.append(data_object.poe, total_poe)
+                data_object.ir_er = np.append(data_object.ir_er, total_irer)
+                data_object.cumulative_motion = np.append(data_object.cumulative_motion, total_motion)
+                data_object.sample_count = np.append(data_object.sample_count, n_samples)
         
 
+    return data_object
 
-
-
-
-    raise NotImplementedError("This function is not yet implemented.")
