@@ -60,6 +60,21 @@ class Heatmap:
             raise ValueError(
                 f"bin_width ({self.bin_width}) must evenly divide {self.poe_range_end}."
             )
+        
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Heatmap):
+            return NotImplemented
+
+        return (
+            self.bin_width == other.bin_width
+            and self.elevation_range_end == other.elevation_range_end
+            and self.poe_range_end == other.poe_range_end
+            and np.array_equal(self.elevation, other.elevation)
+            and np.array_equal(self.poe, other.poe)
+            and np.array_equal(self.ir_er, other.ir_er)
+            and np.array_equal(self.cumulative_motion, other.cumulative_motion)
+            and np.array_equal(self.sample_count, other.sample_count)
+        )
 
 
 @dataclass
