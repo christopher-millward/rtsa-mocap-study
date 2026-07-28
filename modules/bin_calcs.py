@@ -241,15 +241,18 @@ def extract_bin_data(
         )
 
     # Create masks for both dimensions
+    # Since we're applying the masks to the relative rotation matrices, 
+    # they need to have length n_frames - 1, which is why the last row
+    # is omitted from each.
     elevation_mask = (
         (postural_data.elevation >= elevation_start)
         & (postural_data.elevation < elevation_end)
-    )
+    )[:-1]
 
     poe_mask = (
         (postural_data.poe >= poe_start)
         & (postural_data.poe < poe_end)
-    )
+    )[:-1]
 
     # Keep only rows satisfying both conditions
     return mocap_data[elevation_mask & poe_mask]
