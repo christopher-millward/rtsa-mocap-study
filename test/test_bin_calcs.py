@@ -1,24 +1,34 @@
-import numpy as np
 import pytest
+import numpy as np
 from scipy.spatial.transform import Rotation as R
+
+from schema import PosturalAngles
 from modules.bin_calcs import (
-    PositionAngles,
-    accumulate_euler_components, 
-    get_position_angles, 
-    normalize_position_angles, 
-    compute_incremental_rotation_matrices, 
+    accumulate_euler_components,
+    get_position_angles,
+    normalize_position_angles,
+    compute_incremental_rotation_matrices,
     decompose_rotation_matrices_yxy,
     extract_bin_data
 )
 from config import (
-    TEST_PRECISION_TOLERANCE, 
+    TEST_PRECISION_TOLERANCE,
     SMALLEST_CLINICALLY_RELEVANT_ANGLE as SMALL_ANGLE,
     TEST_SINGULARITY_TOLERANCE
 )
 
+# ----------------------------
+# Helper Functions
+# ----------------------------
+
+
 def _is_rotation_matrix(R) -> bool:
     """Sanity check orthonormality."""
     return np.allclose(R.T @ R, np.eye(3), atol=TEST_PRECISION_TOLERANCE)
+
+# ----------------------------
+# Tests
+# ----------------------------
 
 
 class TestGetPositionAngles:
@@ -36,7 +46,7 @@ class TestGetPositionAngles:
                         ]
                     ]
                 ),
-                PositionAngles(
+                PosturalAngles(
                     poe=np.array([0.0], dtype=np.float64),
                     elevation=np.array([0.0], dtype=np.float64),
                     ir_er=np.array([0.0], dtype=np.float64),
@@ -49,7 +59,7 @@ class TestGetPositionAngles:
                     90,
                     degrees=True,
                 ).as_matrix()[None, :, :],
-                PositionAngles(
+                PosturalAngles(
                     poe=np.array([0.0]),
                     elevation=np.array([90.0]),
                     ir_er=np.array([0.0]),
@@ -62,7 +72,7 @@ class TestGetPositionAngles:
                     90,
                     degrees=True,
                 ).as_matrix()[None, :, :],
-                PositionAngles(
+                PosturalAngles(
                     poe=np.array([90.0]),
                     elevation=np.array([0.0]),
                     ir_er=np.array([0.0]),
@@ -78,7 +88,7 @@ class TestGetPositionAngles:
                     ],
                     degrees=True,
                 ).as_matrix(),
-                PositionAngles(
+                PosturalAngles(
                     poe=np.array([30.0, 90.0]),
                     elevation=np.array([45.0, 20.0]),
                     ir_er=np.array([60.0, -30.0]),
@@ -113,29 +123,30 @@ class TestGetPositionAngles:
             atol=1e-10,
         )
 
+
 class TestNormalizePositionAngles:
     @pytest.mark.parametrize(
         ("raw_angles, expected_angles"),
         [
             (
-                PositionAngles(
+                PosturalAngles(
                     poe=np.array([-1.0, 361.0, 725.0]),
                     elevation=np.array([-45.0, 45.0, -120.0]),
                     ir_er=np.array([-1.0, 361.0, 721.0]),
                 ),
-                PositionAngles(
+                PosturalAngles(
                     poe=np.array([359.0, 1.0, 5.0]),
                     elevation=np.array([45.0, 45.0, 120.0]),
                     ir_er=np.array([359.0, 1.0, 1.0]),
                 ),
             ),
             (
-                PositionAngles(
+                PosturalAngles(
                     poe=np.array([0.0]),
                     elevation=np.array([250.0]),
                     ir_er=np.array([0.0]),
                 ),
-                PositionAngles(
+                PosturalAngles(
                     poe=np.array([0.0]),
                     elevation=np.array([70.0]),
                     ir_er=np.array([0.0]),
@@ -168,7 +179,6 @@ class TestNormalizePositionAngles:
             expected_angles.ir_er,
         )
 
-
         # Verify binning constraints
         assert np.all(normalized_angles.poe >= 0)
         assert np.all(normalized_angles.poe < 360)
@@ -179,13 +189,17 @@ class TestNormalizePositionAngles:
         assert np.all(normalized_angles.elevation >= 0)
         assert np.all(normalized_angles.elevation <= 180)
 
+
 class TestComputeIncrementalRotationMatrices:
     @pytest.mark.parametrize(
         "rotation_matrices",
         [
-            pytest.param(np.zeros((2, 2, 2), dtype=np.float64), id="2x2-matrices"),
-            pytest.param(np.zeros((3, 3, 4), dtype=np.float64), id="wrong-last-dim"),
-            pytest.param(np.zeros((4, 9), dtype=np.float64), id="flattened-rows"),
+            pytest.param(np.zeros((2, 2, 2), dtype=np.float64),
+                         id="2x2-matrices"),
+            pytest.param(np.zeros((3, 3, 4), dtype=np.float64),
+                         id="wrong-last-dim"),
+            pytest.param(np.zeros((4, 9), dtype=np.float64),
+                         id="flattened-rows"),
         ],
     )
     def test_should_reject_non_3x3_inputs(self, rotation_matrices):
@@ -197,8 +211,10 @@ class TestComputeIncrementalRotationMatrices:
     @pytest.mark.parametrize(
         "rotation_matrices",
         [
-            pytest.param(np.zeros((0, 3, 3), dtype=np.float64), id="zero-frames"),
-            pytest.param(np.stack([np.eye(3, dtype=np.float64)]), id="single-frame"),
+            pytest.param(np.zeros((0, 3, 3), dtype=np.float64),
+                         id="zero-frames"),
+            pytest.param(
+                np.stack([np.eye(3, dtype=np.float64)]), id="single-frame"),
         ],
     )
     def test_should_reject_insufficient_frames(self, rotation_matrices):
@@ -223,7 +239,8 @@ class TestComputeIncrementalRotationMatrices:
     @pytest.mark.parametrize("n_frames", [2, 5, 10])
     def test_should_return_identity_deltas_for_constant_sequence(self, n_frames):
         """A constant absolute-orientation sequence should produce identity deltas."""
-        frames = np.stack([np.eye(3, dtype=np.float64) for _ in range(n_frames)])
+        frames = np.stack([np.eye(3, dtype=np.float64)
+                          for _ in range(n_frames)])
         deltas = compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (n_frames - 1, 3, 3)
         for D in deltas:
@@ -236,7 +253,8 @@ class TestComputeIncrementalRotationMatrices:
             pytest.param(R.from_euler, "X", np.pi / 6, id="x-axis"),
             pytest.param(R.from_euler, "Y", np.pi / 4, id="y-axis"),
             pytest.param(R.from_euler, "Z", np.pi / 3, id="z-axis"),
-            pytest.param(R.from_euler, "XYZ", [0.2, 0.2, 0.2], id="combined-xyz"),
+            pytest.param(R.from_euler, "XYZ", [
+                         0.2, 0.2, 0.2], id="combined-xyz"),
         ],
     )
     def test_should_return_expected_relative_matrix(self, rotation_builder, sequence, angle):
@@ -251,12 +269,13 @@ class TestComputeIncrementalRotationMatrices:
 
     # Test that the cumulative product of deltas reconstructs the original sequence.
     @pytest.mark.parametrize(
-        ("rotation_builder", "sequence","angle", "n_steps"),
+        ("rotation_builder", "sequence", "angle", "n_steps"),
         [
             pytest.param(R.from_euler, "X", np.pi/12, 4, id="small-x"),
             pytest.param(R.from_euler, "Y", np.pi/12, 4, id="small-y"),
             pytest.param(R.from_euler, "Z", np.pi/12, 4, id="small-z"),
-            pytest.param(R.from_euler, "YXY", [0.15, 0.15, 0.15], 4, id="small-yxy"),
+            pytest.param(R.from_euler, "YXY", [
+                         0.15, 0.15, 0.15], 4, id="small-yxy"),
         ],
     )
     def test_should_reconstruct_to_absolute_orientation(self, rotation_builder, sequence, angle, n_steps):
@@ -275,15 +294,16 @@ class TestComputeIncrementalRotationMatrices:
             reconstructed.append(reconstructed[-1] @ deltas[i])
         reconstructed = np.stack(reconstructed)
 
-        assert np.allclose(reconstructed, frames, atol=TEST_PRECISION_TOLERANCE)
+        assert np.allclose(reconstructed, frames,
+                           atol=TEST_PRECISION_TOLERANCE)
 
     # Test that each delta is a valid rotation matrix (orthonormal with determinant 1).
     @pytest.mark.parametrize(
         ("rotation_builder", "sequence", "angle"),
         [
             pytest.param(R.from_euler, "X",  np.pi / 8, id="x-axis"),
-            pytest.param(R.from_euler, "Y", np.pi/ 7, id="y-axis"),
-            pytest.param(R.from_euler, "Z", np.pi/ 9, id="z-axis"),
+            pytest.param(R.from_euler, "Y", np.pi / 7, id="y-axis"),
+            pytest.param(R.from_euler, "Z", np.pi / 9, id="z-axis"),
             pytest.param(R.from_euler, "YXY", [0.1, 0.2, 0.3], id="combined"),
         ],
     )
@@ -292,7 +312,7 @@ class TestComputeIncrementalRotationMatrices:
         n_steps = 5
         D = rotation_builder(sequence, angle).as_matrix()
         frames = [np.eye(3, dtype=np.float64)]
-        
+
         for _ in range(n_steps - 1):
             frames.append(frames[-1] @ D)
         frames = np.stack(frames)
@@ -308,11 +328,13 @@ class TestComputeIncrementalRotationMatrices:
             pytest.param(R.from_euler, "X",  SMALL_ANGLE, id="small-x"),
             pytest.param(R.from_euler, "Y", SMALL_ANGLE, id="small-y"),
             pytest.param(R.from_euler, "Z", SMALL_ANGLE, id="small-z"),
-            pytest.param(R.from_euler, "YXY", [SMALL_ANGLE, SMALL_ANGLE, SMALL_ANGLE], id="small-yxy"),
+            pytest.param(R.from_euler, "YXY", [
+                         SMALL_ANGLE, SMALL_ANGLE, SMALL_ANGLE], id="small-yxy"),
             pytest.param(R.from_euler, "X",  np.pi / 2, id="large-x"),
             pytest.param(R.from_euler, "Y", np.pi * 0.75, id="large-y"),
             pytest.param(R.from_euler, "Z", np.pi * 0.9, id="large-z"),
-            pytest.param(R.from_euler, "YXY", [np.pi / 6, np.pi / 6, np.pi / 6], id="large-yxy"),
+            pytest.param(R.from_euler, "YXY", [
+                         np.pi / 6, np.pi / 6, np.pi / 6], id="large-yxy"),
         ]
     )
     def test_should_handle_small_and_large_rotations(self, rotation_builder, sequence, angle):
@@ -343,14 +365,18 @@ class TestComputeIncrementalRotationMatrices:
         assert deltas.shape == (n_frames - 1, 3, 3)
         assert deltas.dtype == np.float64
 
+
 class TestDecomposeRotationMatricesYXY:
     # Test that non-3x3 inputs are rejected with a ValueError.
     @pytest.mark.parametrize(
         "relative_rotations",
         [
-            pytest.param(np.zeros((2, 2, 2), dtype=np.float64), id="2x2-matrices"),
-            pytest.param(np.zeros((3, 3, 4), dtype=np.float64), id="wrong-last-dim"),
-            pytest.param(np.zeros((4, 9), dtype=np.float64), id="flattened-rows"),
+            pytest.param(np.zeros((2, 2, 2), dtype=np.float64),
+                         id="2x2-matrices"),
+            pytest.param(np.zeros((3, 3, 4), dtype=np.float64),
+                         id="wrong-last-dim"),
+            pytest.param(np.zeros((4, 9), dtype=np.float64),
+                         id="flattened-rows"),
         ],
     )
     def test_should_reject_non_3x3_inputs(self, relative_rotations):
@@ -361,7 +387,8 @@ class TestDecomposeRotationMatricesYXY:
     @pytest.mark.parametrize(
         "relative_rotations",
         [
-            pytest.param(np.stack([np.eye(3, dtype=np.float32)]), id="float32"),
+            pytest.param(
+                np.stack([np.eye(3, dtype=np.float32)]), id="float32"),
             pytest.param(np.stack([np.eye(3, dtype=np.int64)]), id="int64"),
         ],
     )
@@ -405,7 +432,8 @@ class TestDecomposeRotationMatricesYXY:
         matrices = np.stack([R.from_euler("YXY", [a, b, c]).as_matrix()])
         angles = decompose_rotation_matrices_yxy(matrices)[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, matrices[0], atol=TEST_PRECISION_TOLERANCE)
+        assert np.allclose(
+            recomposed, matrices[0], atol=TEST_PRECISION_TOLERANCE)
 
     # Singularity: middle angle (X) near zero should still reconstruct
     @pytest.mark.parametrize("beta", [0.0, 1e-8])
@@ -444,7 +472,8 @@ class TestDecomposeRotationMatricesYXY:
 
     # Determinism: repeated calls return identical results
     def test_deterministic_outputs(self):
-        M = R.from_euler("YXY", [0.25, 0.15, -0.35]).as_matrix()  # Use the same matrix for consistency
+        # Use the same matrix for consistency
+        M = R.from_euler("YXY", [0.25, 0.15, -0.35]).as_matrix()
         first = decompose_rotation_matrices_yxy(np.stack([M]))
         second = decompose_rotation_matrices_yxy(np.stack([M]))
         assert np.allclose(first, second)
@@ -453,7 +482,8 @@ class TestDecomposeRotationMatricesYXY:
     @pytest.mark.parametrize(
         ("a", "b", "c"),
         [
-            pytest.param(SMALL_ANGLE, SMALL_ANGLE, -SMALL_ANGLE, id="tiny-angles"),
+            pytest.param(SMALL_ANGLE, SMALL_ANGLE, -
+                         SMALL_ANGLE, id="tiny-angles"),
             pytest.param(1.2, np.pi - SMALL_ANGLE, -0.9, id="large-middle"),
         ],
     )
@@ -462,6 +492,7 @@ class TestDecomposeRotationMatricesYXY:
         angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
         recomposed = R.from_euler("YXY", angles).as_matrix()
         assert np.allclose(recomposed, M, atol=TEST_PRECISION_TOLERANCE)
+
 
 class TestExtractBinData:
 
@@ -483,16 +514,15 @@ class TestExtractBinData:
         )
 
     @pytest.fixture
-    def postural_data(self) -> PositionAngles:
+    def postural_data(self) -> PosturalAngles:
         """
         Postural data representing the starting position of each relative rotation.
         """
-        return PositionAngles(
+        return PosturalAngles(
             poe=np.array([10, 20, 30, 40, 50], dtype=np.float64),
             elevation=np.array([10, 20, 30, 40, 50], dtype=np.float64),
             ir_er=np.array([10, 20, 30, 40, 50], dtype=np.float64),
         )
-
 
     def test_returns_only_frames_inside_requested_bin(
         self,
@@ -671,7 +701,8 @@ class TestAccumulateEulerComponents:
         )
         expected = (5.0, 7.0, 9.0)
 
-        result = accumulate_euler_components(euler_angles)  # type: ignore[arg-type]
+        result = accumulate_euler_components(
+            euler_angles)  # type: ignore[arg-type]
 
         assert result == pytest.approx((5.0, 7.0, 9.0))
 
@@ -704,4 +735,3 @@ class TestAccumulateEulerComponents:
             match="euler_angles must contain at least one row",
         ):
             accumulate_euler_components(euler_angles)
-

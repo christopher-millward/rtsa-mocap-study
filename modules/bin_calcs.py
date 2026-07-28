@@ -4,28 +4,18 @@
 Author: Christopher Millward
 """
 
-from dataclasses import dataclass
-
 import numpy as np
 import numpy.typing as npt
 from typing import Literal, Tuple
 from scipy.spatial.transform import Rotation as R
-from modules.data_loading import Heatmap
+from schema import Heatmap
 from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
-
-@dataclass
-class PositionAngles:
-    """Absolute anatomical position angles in degrees."""
-
-    poe: npt.NDArray[np.float64] | None = None
-    elevation: npt.NDArray[np.float64] | None = None
-    ir_er: npt.NDArray[np.float64] | None = None
-
+from schema import PosturalAngles
 
 def get_position_angles(
     rotation_matrices: npt.NDArray[np.float64],
-) -> PositionAngles:
+) -> PosturalAngles:
     """Calculate the postural angles, in degrees, (POE, elevation, IR/ER) from
     rotation matrices for each frame.
 
@@ -60,15 +50,15 @@ def get_position_angles(
         degrees=True,
     )
 
-    return PositionAngles(
+    return PosturalAngles(
         poe=euler_angles[:, 0],
         elevation=euler_angles[:, 1],
         ir_er=euler_angles[:, 2],
     )
 
 def normalize_position_angles(
-    angles: PositionAngles,
-) -> PositionAngles:
+    angles: PosturalAngles,
+) -> PosturalAngles:
     """Normalize Euler position angles for workspace binning.
     
     POE and IR_ER angles are normalized to the range [0, 360) degrees.
@@ -78,7 +68,7 @@ def normalize_position_angles(
     if angles.poe is None or angles.elevation is None or angles.ir_er is None:
         raise ValueError("All position angles must be provided for normalization.")
 
-    return PositionAngles(
+    return PosturalAngles(
         poe=np.mod(angles.poe, 360.0),
         elevation=np.mod(np.abs(angles.elevation), 180.0),
         ir_er=np.mod(angles.ir_er, 360.0),
@@ -184,7 +174,7 @@ def decompose_rotation_matrices_yxy(
 
 def extract_bin_data(
     mocap_data: npt.NDArray[np.float64],
-    postural_data: PositionAngles,
+    postural_data: PosturalAngles,
     elevation_start: float,
     elevation_end: float,
     poe_start: float,
@@ -221,7 +211,7 @@ def extract_bin_data(
         raise ValueError("mocap_data must have shape (n_frames, 3, 3)")
 
     # postural data needs 3 cols
-    if not isinstance(postural_data, PositionAngles):
+    if not isinstance(postural_data, PosturalAngles):
         raise TypeError("postural_data must be a PositionAngles instance")
 
     # postural data cannot be none

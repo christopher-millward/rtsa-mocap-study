@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 from pathlib import Path
 from unittest.mock import patch
 from config import RAW_DATA_DIR
@@ -6,16 +5,15 @@ from config import RAW_DATA_DIR
 import pandas as pd
 import pytest
 import numpy as np
-from typing import cast
-
+from schema import ArmRotationDetails
 from modules.data_loading import (
-    ArmRotationDetails,
     load_motion_capture_data,
     load_participant_details
 )
 
-# ---- Helper Functions ----
-
+# ----------------------------
+# Helper Functions
+# ----------------------------
 def _frame(rows):
     """Build a DataFrame that mimics the Excel sheet structure."""
     return pd.DataFrame(rows)
@@ -31,7 +29,9 @@ def _load_from_rows(rows):
     mock_read_excel.assert_called_once_with(Path("fake-path.xlsx"))
     return participants
 
-
+# ----------------------------
+# Tests
+# ----------------------------
 class TestLoadParticipantDetails:
     @pytest.mark.parametrize(
         "filepath",
@@ -229,7 +229,8 @@ class TestLoadParticipantDetails:
         np.testing.assert_array_equal(left.elevation, np.empty((0, 0)))
         np.testing.assert_array_equal(left.poe, np.empty((0, 0)))
         np.testing.assert_array_equal(left.ir_er, np.empty((0, 0)))
-        np.testing.assert_array_equal(left.sample_count, np.empty((0, 0), dtype=np.int64))
+        np.testing.assert_array_equal(
+            left.sample_count, np.empty((0, 0), dtype=np.int64))
 
     @pytest.mark.parametrize("op_side", ["left", "right"])
     def test_should_allow_dynamic_side_access_for_arm_metrics(self, op_side):
