@@ -1,15 +1,25 @@
 import pytest
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+from unittest.mock import MagicMock, patch
 
-from schema import PosturalAngles
 from modules.bin_calcs import (
-    accumulate_euler_components,
-    get_position_angles,
-    normalize_position_angles,
-    compute_incremental_rotation_matrices,
-    decompose_rotation_matrices_yxy,
-    extract_bin_data
+    PosturalAngles,
+    BinBounds,
+    BinRotationResult,
+    _validate_rotation_data,
+    _accumulate_euler_components,
+    _get_postural_angles,
+    _normalize_postural_angles,
+    _compute_incremental_rotation_matrices,
+    _calculate_relative_motion,
+    _generate_heatmap_bins,
+    _decompose_rotation_matrices_yxy,
+    _extract_bin_data,
+    _calculate_single_bin,
+    _add_bin_result_to_heatmap,
+    _populate_heatmap,
+    calculate_bin_rotations
 )
 from config import (
     TEST_PRECISION_TOLERANCE,
@@ -17,21 +27,133 @@ from config import (
     TEST_SINGULARITY_TOLERANCE
 )
 
+from schema import Heatmap
+
 # ----------------------------
 # Helper Functions
 # ----------------------------
-
-
 def _is_rotation_matrix(R) -> bool:
     """Sanity check orthonormality."""
     return np.allclose(R.T @ R, np.eye(3), atol=TEST_PRECISION_TOLERANCE)
+
+
+# ----------------------------
+# Global Fixtures
+# ----------------------------
+@pytest.fixture
+def mocker():
+    patches = []
+
+    class Mocker:
+        def patch(self, target, *args, **kwargs):
+            p = patch(target, *args, **kwargs)
+            mocked = p.start()
+            patches.append(p)
+            return mocked
+
+    yield Mocker()
+
+    for p in reversed(patches):
+        p.stop()
+
 
 # ----------------------------
 # Tests
 # ----------------------------
 
+class TestValidateRotationData:
+    @pytest.fixture
+    def valid_rotation_data(self) -> np.ndarray:
+        """Create valid flattened rotation matrix data."""
+        return np.ones((10, 18))
 
-class TestGetPositionAngles:
+    @pytest.mark.parametrize("arm", ["left", "right"])
+    def test_accepts_valid_arm_values(self, valid_rotation_data, arm):
+        result = _validate_rotation_data(valid_rotation_data, arm)
+
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (10, 18)
+
+    @pytest.mark.parametrize(
+        "invalid_arm",
+        [
+            "Left",
+            "RIGHT",
+            "middle",
+            "",
+            None,
+            1,
+        ],
+    )
+    def test_rejects_invalid_arm_values(self, valid_rotation_data, invalid_arm):
+        with pytest.raises(ValueError, match="arm must be"):
+            _validate_rotation_data(valid_rotation_data, invalid_arm)
+
+    @pytest.mark.parametrize(
+        "invalid_shape",
+        [
+            (18,),          # 1D array
+            (10, 17),       # Too few columns
+            (10, 19),       # Too many columns
+            (2, 3, 3),      # 3D array
+            (1, 1, 18),     # Incorrect dimensionality
+        ],
+    )
+    def test_rejects_invalid_data_shapes(self, invalid_shape):
+        """Rejects arrays that do not have shape (n_frames, 18)."""
+        data = np.ones(invalid_shape)
+
+        with pytest.raises(ValueError):
+            _validate_rotation_data(data, "left")
+
+    def test_rejects_empty_array(self):
+        """Rejects arrays with zero frames."""
+        data = np.empty((0, 18))
+
+        with pytest.raises(
+            ValueError
+        ):
+            _validate_rotation_data(data, "left")
+
+    def test_converts_input_to_float64(self):
+        """Converts integer input data to np.float64."""
+        data = np.ones((5, 18), dtype=np.int32)
+
+        result = _validate_rotation_data(data, "right") # type: ignore[arg-type]
+
+        assert result.dtype == np.float64
+
+    def test_output_is_numpy_array(self):
+        """Returns a numpy array."""
+        data =np.ones((5, 18), dtype=np.float64)
+        result = _validate_rotation_data(data, "left")
+
+        assert isinstance(result, np.ndarray)
+        assert result.dtype == np.float64
+
+    def test_preserves_valid_input_values(
+        self,
+        valid_rotation_data,
+    ):
+        """Does not modify valid input values."""
+        data = valid_rotation_data.copy()
+        data[0, 0] = 42.5
+
+        result = _validate_rotation_data(data, "left")
+
+        np.testing.assert_array_equal(result, data)
+
+    def test_accepts_single_frame(self):
+        """Accepts data containing one frame."""
+        data = np.zeros((1, 18))
+
+        result = _validate_rotation_data(data, "right")
+
+        assert result.shape == (1, 18)
+        assert result.dtype == np.float64
+
+
+class TestGetPosturalAngles:
     @pytest.mark.parametrize(
         "rotation_matrices, expected_angles",
         [
@@ -99,7 +221,7 @@ class TestGetPositionAngles:
     def test_get_position_angles(self, rotation_matrices, expected_angles):
         """Test Euler angle decomposition from rotation matrices."""
 
-        actual_angles = get_position_angles(rotation_matrices)
+        actual_angles = _get_postural_angles(rotation_matrices)
         # appeasing the type checker since the dataclass allows None values
         assert actual_angles.poe is not None
         assert actual_angles.elevation is not None
@@ -124,7 +246,7 @@ class TestGetPositionAngles:
         )
 
 
-class TestNormalizePositionAngles:
+class TestNormalizePosturalAngles:
     @pytest.mark.parametrize(
         ("raw_angles, expected_angles"),
         [
@@ -157,7 +279,7 @@ class TestNormalizePositionAngles:
     def test_normalize_position_angles(self, raw_angles, expected_angles):
         """Test position angle normalization for heatmap binning."""
 
-        normalized_angles = normalize_position_angles(raw_angles)
+        normalized_angles = _normalize_postural_angles(raw_angles)
 
         # Assert no NoneTypes to appease the type checker
         assert normalized_angles.poe is not None
@@ -205,7 +327,7 @@ class TestComputeIncrementalRotationMatrices:
     def test_should_reject_non_3x3_inputs(self, rotation_matrices):
         """The function should only accept batches of 3x3 matrices."""
         with pytest.raises(ValueError):
-            compute_incremental_rotation_matrices(rotation_matrices)
+            _compute_incremental_rotation_matrices(rotation_matrices)
 
     # Test that fewer than two frames are rejected with a ValueError.
     @pytest.mark.parametrize(
@@ -220,7 +342,7 @@ class TestComputeIncrementalRotationMatrices:
     def test_should_reject_insufficient_frames(self, rotation_matrices):
         """The function should require at least two frames so a relative rotation exists."""
         with pytest.raises(ValueError):
-            compute_incremental_rotation_matrices(rotation_matrices)
+            _compute_incremental_rotation_matrices(rotation_matrices)
 
     # Test that non-float64 inputs are accepted and safely coerced to float64.
     @pytest.mark.parametrize(
@@ -232,7 +354,7 @@ class TestComputeIncrementalRotationMatrices:
     )
     def test_should_coerce_non_float64_inputs(self, rotation_matrices):
         """The function should coerce input matrices to float64."""
-        deltas = compute_incremental_rotation_matrices(rotation_matrices)
+        deltas = _compute_incremental_rotation_matrices(rotation_matrices)
         assert deltas.dtype == np.float64
 
     # Test that a sequence of identical matrices produces identity deltas.
@@ -241,7 +363,7 @@ class TestComputeIncrementalRotationMatrices:
         """A constant absolute-orientation sequence should produce identity deltas."""
         frames = np.stack([np.eye(3, dtype=np.float64)
                           for _ in range(n_frames)])
-        deltas = compute_incremental_rotation_matrices(frames)
+        deltas = _compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (n_frames - 1, 3, 3)
         for D in deltas:
             assert np.allclose(D, np.eye(3), atol=TEST_PRECISION_TOLERANCE)
@@ -262,7 +384,7 @@ class TestComputeIncrementalRotationMatrices:
         R0 = np.eye(3, dtype=np.float64)
         R1 = rotation_builder(sequence, angle).as_matrix()
         frames = np.stack([R0, R1])
-        deltas = compute_incremental_rotation_matrices(frames)
+        deltas = _compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (1, 3, 3)
         expected = R1 @ R0.T
         assert np.allclose(deltas[0], expected, atol=TEST_PRECISION_TOLERANCE)
@@ -286,7 +408,7 @@ class TestComputeIncrementalRotationMatrices:
             frames.append(frames[-1] @ D)
         frames = np.stack(frames)
 
-        deltas = compute_incremental_rotation_matrices(frames)
+        deltas = _compute_incremental_rotation_matrices(frames)
 
         # Reconstruct sequential frames from R0 and deltas
         reconstructed = [frames[0]]
@@ -317,7 +439,7 @@ class TestComputeIncrementalRotationMatrices:
             frames.append(frames[-1] @ D)
         frames = np.stack(frames)
 
-        deltas = compute_incremental_rotation_matrices(frames)
+        deltas = _compute_incremental_rotation_matrices(frames)
         for D in deltas:
             assert _is_rotation_matrix(D)
 
@@ -341,7 +463,7 @@ class TestComputeIncrementalRotationMatrices:
         """Small absolute changes should yield small deltas, and larger changes should yield larger deltas."""
         R0 = np.eye(3, dtype=np.float64)
         R1 = rotation_builder(sequence, angle).as_matrix()
-        deltas = compute_incremental_rotation_matrices(np.stack([R0, R1]))
+        deltas = _compute_incremental_rotation_matrices(np.stack([R0, R1]))
         # Compute rotation angle from a rotation matrix using the trace formula
         # theta = arccos((trace(R) - 1) / 2)
         delta_trace = np.trace(deltas[0])
@@ -361,137 +483,221 @@ class TestComputeIncrementalRotationMatrices:
             frames.append(frames[-1] @ D)
         frames = np.stack(frames)
 
-        deltas = compute_incremental_rotation_matrices(frames)
+        deltas = _compute_incremental_rotation_matrices(frames)
         assert deltas.shape == (n_frames - 1, 3, 3)
         assert deltas.dtype == np.float64
 
 
-class TestDecomposeRotationMatricesYXY:
-    # Test that non-3x3 inputs are rejected with a ValueError.
+class TestCalculateRelativeMotion:
+    """Tests for _calculate_relative_motion."""
+
+    @pytest.fixture
+    def data(self) -> np.ndarray:
+        """Create valid input data."""
+        rng = np.random.default_rng(42)
+        return rng.random((10, 18))
+
+    @pytest.fixture
+    def matrices(self) -> np.ndarray:
+        """Mock rotation matrices."""
+        rng = np.random.default_rng(1)
+        return rng.random((10, 3, 3))
+
+    @pytest.fixture
+    def postural_angles(self) -> MagicMock:
+        """Mock PosturalAngles object."""
+        return MagicMock(spec=PosturalAngles)
+
+    @pytest.fixture
+    def normalized_postural_angles(self) -> MagicMock:
+        """Mock normalized PosturalAngles object."""
+        return MagicMock(spec=PosturalAngles)
+
+    @pytest.fixture
+    def relative_matrices(self) -> np.ndarray:
+        """Mock relative rotation matrices."""
+        rng = np.random.default_rng(2)
+        return rng.random((10, 3, 3))
+
+    def test_calls_dependencies_once_and_returns_expected_values(
+        self,
+        mocker,
+        data,
+        matrices,
+        postural_angles,
+        normalized_postural_angles,
+        relative_matrices,
+    ):
+        """Calls each dependency exactly once and returns their outputs."""
+        create = mocker.patch(
+            "modules.bin_calcs.create_rotation_matrices",
+            return_value=matrices,
+        )
+        get_angles = mocker.patch(
+            "modules.bin_calcs._get_postural_angles",
+            return_value=postural_angles,
+        )
+        normalize = mocker.patch(
+            "modules.bin_calcs._normalize_postural_angles",
+            return_value=normalized_postural_angles,
+        )
+        compute = mocker.patch(
+            "modules.bin_calcs._compute_incremental_rotation_matrices",
+            return_value=relative_matrices,
+        )
+
+        result_matrices, result_angles = _calculate_relative_motion(
+            data,
+            "left",
+        )
+
+        create.assert_called_once_with(data, "left")
+        get_angles.assert_called_once_with(matrices)
+        normalize.assert_called_once_with(postural_angles)
+        compute.assert_called_once_with(matrices)
+
+        assert result_matrices is relative_matrices
+        assert result_angles is normalized_postural_angles
+
+    def test_does_not_modify_input_data(
+        self,
+        mocker,
+        data,
+        matrices,
+        postural_angles,
+        normalized_postural_angles,
+        relative_matrices,
+    ) -> None:
+        """Does not modify the input data."""
+        original = data.copy()
+
+        mocker.patch(
+            "modules.bin_calcs.create_rotation_matrices",
+            return_value=matrices,
+        )
+        mocker.patch(
+            "modules.bin_calcs._get_postural_angles",
+            return_value=postural_angles,
+        )
+        mocker.patch(
+            "modules.bin_calcs._normalize_postural_angles",
+            return_value=normalized_postural_angles,
+        )
+        mocker.patch(
+            "modules.bin_calcs._compute_incremental_rotation_matrices",
+            return_value=relative_matrices,
+        )
+
+        _calculate_relative_motion(data, "left")
+
+        np.testing.assert_array_equal(data, original)
+
+
+class TestGenerateHeatmapBins:
     @pytest.mark.parametrize(
-        "relative_rotations",
+        "bin_width, elevation_end, poe_end, expected_count",
         [
-            pytest.param(np.zeros((2, 2, 2), dtype=np.float64),
-                         id="2x2-matrices"),
-            pytest.param(np.zeros((3, 3, 4), dtype=np.float64),
-                         id="wrong-last-dim"),
-            pytest.param(np.zeros((4, 9), dtype=np.float64),
-                         id="flattened-rows"),
+            (10, 180, 360, 18 * 36),
+            (20, 180, 360, 9 * 18),
+            (30, 180, 360, 6 * 12),
+            (90, 180, 360, 2 * 4),
         ],
     )
-    def test_should_reject_non_3x3_inputs(self, relative_rotations):
-        with pytest.raises(ValueError):
-            decompose_rotation_matrices_yxy(relative_rotations)
+    def test_generates_expected_number_of_bins(
+        self,
+        bin_width: int,
+        elevation_end: int,
+        poe_end: int,
+        expected_count: int,
+    ):
+        bins = list(
+            _generate_heatmap_bins(
+                bin_width,
+                elevation_end,
+                poe_end,
+            )
+        )
 
-    # Test that empty batch input raises a ValueError.
+        assert len(bins) == expected_count
+
+    def test_generates_expected_bin_boundaries(self) -> None:
+        """Generates the correct sequence of bin boundaries."""
+        bins = list(
+            _generate_heatmap_bins(
+                bin_width=90,
+                elevation_range_end=180,
+                poe_range_end=180,
+            )
+        )
+
+        expected = [
+            BinBounds(elevation_start=0, elevation_end=90, poe_start=0, poe_end=90),
+            BinBounds(elevation_start=0, elevation_end=90, poe_start=90, poe_end=180),
+            BinBounds(elevation_start=90, elevation_end=180, poe_start=0, poe_end=90),
+            BinBounds(elevation_start=90, elevation_end=180, poe_start=90, poe_end=180),
+        ]
+
+        assert bins == expected
+
     @pytest.mark.parametrize(
-        "relative_rotations",
+        "bin_width, elevation_end, poe_end",
         [
-            pytest.param(
-                np.stack([np.eye(3, dtype=np.float32)]), id="float32"),
-            pytest.param(np.stack([np.eye(3, dtype=np.int64)]), id="int64"),
+            (10, 180, 360),
+            (20, 180, 360),
+            (45, 180, 360),
         ],
     )
-    def test_should_coerce_non_float64_inputs(self, relative_rotations):
-        angles = decompose_rotation_matrices_yxy(relative_rotations)
-        assert angles.dtype == np.float64
+    def test_returns_binbounds_with_integer_fields(
+        self,
+        bin_width: int,
+        elevation_end: int,
+        poe_end: int,
+    ):
+        bins = list(
+            _generate_heatmap_bins(
+                bin_width,
+                elevation_end,
+                poe_end,
+            )
+        )
 
-    # Test that empty batch input raises a ValueError.
-    def test_should_reject_empty_batch(self):
-        empty = np.zeros((0, 3, 3), dtype=np.float64)
-        with pytest.raises(ValueError):
-            decompose_rotation_matrices_yxy(empty)
+        for bin_ in bins:
+            bin_obj = BinBounds(**bin_.__dict__)
+            assert isinstance(bin_obj.elevation_start, int)
+            assert isinstance(bin_obj.elevation_end, int)
+            assert isinstance(bin_obj.poe_start, int)
+            assert isinstance(bin_obj.poe_end, int)
 
-    # Output shape and dtype for single and multiple steps
-    @pytest.mark.parametrize("n_steps", [1, 5])
-    def test_should_return_expected_shape_and_dtype(self, n_steps):
-        matrices = np.stack([
-            R.from_euler("YXY", [0.1, 0.05, 0.2]).as_matrix()
-            for _ in range(n_steps)
-        ])
-        angles = decompose_rotation_matrices_yxy(matrices)
-        assert angles.shape == (n_steps, 3)
-        assert angles.dtype == np.float64
+    def test_bin_width_is_consistent(self):
+        """Each generated bin has the requested width."""
+        bin_width = 30
 
-    # Identity matrices should yield zero angles
-    def test_identity_should_decompose_to_zeros(self):
-        matrices = np.stack([np.eye(3, dtype=np.float64) for _ in range(3)])
-        angles = decompose_rotation_matrices_yxy(matrices)
-        assert np.allclose(angles, np.zeros((3, 3), dtype=np.float64))
+        bins = list(
+            _generate_heatmap_bins(
+                bin_width,
+                elevation_range_end=180,
+                poe_range_end=360,
+            )
+        )
 
-    # Recomposition: decompose matrices built as Ry(a) @ Rx(b) @ Ry(c)
-    @pytest.mark.parametrize(
-        ("a", "b", "c"),
-        [
-            pytest.param(0.1, 0.05, -0.2, id="small-mix"),
-            pytest.param(np.pi / 6, 0.2, np.pi / 8, id="medium-mix"),
-            pytest.param(-0.3, np.pi / 3, 0.4, id="mixed-signs"),
-        ],
-    )
-    def test_known_yxy_compositions_reconstruct(self, a, b, c):
-        matrices = np.stack([R.from_euler("YXY", [a, b, c]).as_matrix()])
-        angles = decompose_rotation_matrices_yxy(matrices)[0]
-        recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(
-            recomposed, matrices[0], atol=TEST_PRECISION_TOLERANCE)
+        for bin_ in bins:
+            assert (
+                bin_.elevation_end - bin_.elevation_start
+                == bin_width
+            )
+            assert (
+                bin_.poe_end - bin_.poe_start
+                == bin_width
+            )
 
-    # Singularity: middle angle (X) near zero should still reconstruct
-    @pytest.mark.parametrize("beta", [0.0, 1e-8])
-    def test_singularity_beta_near_zero(self, beta):
-        a, c = 0.3, -0.4
-        M = R.from_euler("YXY", [a, beta, c]).as_matrix()
-        angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
-        recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, M, atol=TEST_SINGULARITY_TOLERANCE)
+    def test_returns_iterator(self):
+        iterator = _generate_heatmap_bins(
+            bin_width=30,
+            elevation_range_end=180,
+            poe_range_end=360,
+        )
 
-    # Singularity: middle angle (X) near pi should still reconstruct
-    def test_singularity_beta_near_pi(self):
-        beta = np.pi - 1e-8
-        a, c = 0.2, 0.5
-        M = R.from_euler("YXY", [a, beta, c]).as_matrix()
-        angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
-        recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, M, atol=TEST_SINGULARITY_TOLERANCE)
-
-    # Clipping robustness: tiny noise pushing values slightly outside [-1,1]
-    def test_clipping_robustness(self):
-        a, b, c = 0.4, 0.9, -0.2
-        M = R.from_euler("YXY", [a, b, c]).as_matrix()
-        noisy = M.copy()
-        noisy += np.random.default_rng(1).normal(scale=1e-12, size=M.shape)
-        angles = decompose_rotation_matrices_yxy(np.stack([noisy]))[0]
-        recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, M, atol=TEST_PRECISION_TOLERANCE)
-
-    # Non-rotation matrices should raise ValueError
-    def test_should_reject_non_rotation_matrices(self):
-        bad = np.eye(3, dtype=np.float64)
-        bad[0] *= 2.0  # break orthonormality
-        with pytest.raises(ValueError):
-            decompose_rotation_matrices_yxy(np.stack([bad]))
-
-    # Determinism: repeated calls return identical results
-    def test_deterministic_outputs(self):
-        # Use the same matrix for consistency
-        M = R.from_euler("YXY", [0.25, 0.15, -0.35]).as_matrix()
-        first = decompose_rotation_matrices_yxy(np.stack([M]))
-        second = decompose_rotation_matrices_yxy(np.stack([M]))
-        assert np.allclose(first, second)
-
-    # Sensitivity across magnitudes: tiny and near-pi angles reconstruct
-    @pytest.mark.parametrize(
-        ("a", "b", "c"),
-        [
-            pytest.param(SMALL_ANGLE, SMALL_ANGLE, -
-                         SMALL_ANGLE, id="tiny-angles"),
-            pytest.param(1.2, np.pi - SMALL_ANGLE, -0.9, id="large-middle"),
-        ],
-    )
-    def test_small_and_large_angle_sensitivity(self, a, b, c):
-        M = R.from_euler("YXY", [a, b, c]).as_matrix()
-        angles = decompose_rotation_matrices_yxy(np.stack([M]))[0]
-        recomposed = R.from_euler("YXY", angles).as_matrix()
-        assert np.allclose(recomposed, M, atol=TEST_PRECISION_TOLERANCE)
+        assert iter(iterator) is iterator
 
 
 class TestExtractBinData:
@@ -531,7 +737,7 @@ class TestExtractBinData:
     ):
         """Returns relative rotations where both elevation and POE fall inside the bin."""
 
-        result = extract_bin_data(
+        result = _extract_bin_data(
             mocap_data=relative_rotations,
             postural_data=postural_data,
             elevation_start=15,
@@ -558,7 +764,7 @@ class TestExtractBinData:
     ):
         """Frames exactly at the lower bound are included, and frames exactly at the upper bound are excluded."""
 
-        result = extract_bin_data(
+        result = _extract_bin_data(
             relative_rotations,
             postural_data,
             elevation_start=20,
@@ -596,7 +802,7 @@ class TestExtractBinData:
         poe_end,
     ):
         with pytest.raises(ValueError):
-            extract_bin_data(
+            _extract_bin_data(
                 relative_rotations,
                 postural_data,
                 elevation_start,
@@ -610,7 +816,7 @@ class TestExtractBinData:
         relative_rotations,
         postural_data,
     ):
-        result = extract_bin_data(
+        result = _extract_bin_data(
             relative_rotations,
             postural_data,
             elevation_start=100,
@@ -628,7 +834,7 @@ class TestExtractBinData:
     ):
         original = relative_rotations.copy()
 
-        extract_bin_data(
+        _extract_bin_data(
             relative_rotations,
             postural_data,
             elevation_start=0,
@@ -638,6 +844,134 @@ class TestExtractBinData:
         )
 
         np.testing.assert_array_equal(relative_rotations, original)
+
+
+class TestDecomposeRotationMatricesYXY:
+    # Test that non-3x3 inputs are rejected with a ValueError.
+    @pytest.mark.parametrize(
+        "relative_rotations",
+        [
+            pytest.param(np.zeros((2, 2, 2), dtype=np.float64),
+                         id="2x2-matrices"),
+            pytest.param(np.zeros((3, 3, 4), dtype=np.float64),
+                         id="wrong-last-dim"),
+            pytest.param(np.zeros((4, 9), dtype=np.float64),
+                         id="flattened-rows"),
+        ],
+    )
+    def test_should_reject_non_3x3_inputs(self, relative_rotations):
+        with pytest.raises(ValueError):
+            _decompose_rotation_matrices_yxy(relative_rotations)
+
+    # Test that empty batch input raises a ValueError.
+    @pytest.mark.parametrize(
+        "relative_rotations",
+        [
+            pytest.param(
+                np.stack([np.eye(3, dtype=np.float32)]), id="float32"),
+            pytest.param(np.stack([np.eye(3, dtype=np.int64)]), id="int64"),
+        ],
+    )
+    def test_should_coerce_non_float64_inputs(self, relative_rotations):
+        angles = _decompose_rotation_matrices_yxy(relative_rotations)
+        assert angles.dtype == np.float64
+
+    # Test that empty batch input raises a ValueError.
+    def test_should_reject_empty_batch(self):
+        empty = np.zeros((0, 3, 3), dtype=np.float64)
+        with pytest.raises(ValueError):
+            _decompose_rotation_matrices_yxy(empty)
+
+    # Output shape and dtype for single and multiple steps
+    @pytest.mark.parametrize("n_steps", [1, 5])
+    def test_should_return_expected_shape_and_dtype(self, n_steps):
+        matrices = np.stack([
+            R.from_euler("YXY", [0.1, 0.05, 0.2]).as_matrix()
+            for _ in range(n_steps)
+        ])
+        angles = _decompose_rotation_matrices_yxy(matrices)
+        assert angles.shape == (n_steps, 3)
+        assert angles.dtype == np.float64
+
+    # Identity matrices should yield zero angles
+    def test_identity_should_decompose_to_zeros(self):
+        matrices = np.stack([np.eye(3, dtype=np.float64) for _ in range(3)])
+        angles = _decompose_rotation_matrices_yxy(matrices)
+        assert np.allclose(angles, np.zeros((3, 3), dtype=np.float64))
+
+    # Recomposition: decompose matrices built as Ry(a) @ Rx(b) @ Ry(c)
+    @pytest.mark.parametrize(
+        ("a", "b", "c"),
+        [
+            pytest.param(0.1, 0.05, -0.2, id="small-mix"),
+            pytest.param(np.pi / 6, 0.2, np.pi / 8, id="medium-mix"),
+            pytest.param(-0.3, np.pi / 3, 0.4, id="mixed-signs"),
+        ],
+    )
+    def test_known_yxy_compositions_reconstruct(self, a, b, c):
+        matrices = np.stack([R.from_euler("YXY", [a, b, c]).as_matrix()])
+        angles = _decompose_rotation_matrices_yxy(matrices)[0]
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(
+            recomposed, matrices[0], atol=TEST_PRECISION_TOLERANCE)
+
+    # Singularity: middle angle (X) near zero should still reconstruct
+    @pytest.mark.parametrize("beta", [0.0, 1e-8])
+    def test_singularity_beta_near_zero(self, beta):
+        a, c = 0.3, -0.4
+        M = R.from_euler("YXY", [a, beta, c]).as_matrix()
+        angles = _decompose_rotation_matrices_yxy(np.stack([M]))[0]
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, M, atol=TEST_SINGULARITY_TOLERANCE)
+
+    # Singularity: middle angle (X) near pi should still reconstruct
+    def test_singularity_beta_near_pi(self):
+        beta = np.pi - 1e-8
+        a, c = 0.2, 0.5
+        M = R.from_euler("YXY", [a, beta, c]).as_matrix()
+        angles = _decompose_rotation_matrices_yxy(np.stack([M]))[0]
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, M, atol=TEST_SINGULARITY_TOLERANCE)
+
+    # Clipping robustness: tiny noise pushing values slightly outside [-1,1]
+    def test_clipping_robustness(self):
+        a, b, c = 0.4, 0.9, -0.2
+        M = R.from_euler("YXY", [a, b, c]).as_matrix()
+        noisy = M.copy()
+        noisy += np.random.default_rng(1).normal(scale=1e-12, size=M.shape)
+        angles = _decompose_rotation_matrices_yxy(np.stack([noisy]))[0]
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, M, atol=TEST_PRECISION_TOLERANCE)
+
+    # Non-rotation matrices should raise ValueError
+    def test_should_reject_non_rotation_matrices(self):
+        bad = np.eye(3, dtype=np.float64)
+        bad[0] *= 2.0  # break orthonormality
+        with pytest.raises(ValueError):
+            _decompose_rotation_matrices_yxy(np.stack([bad]))
+
+    # Determinism: repeated calls return identical results
+    def test_deterministic_outputs(self):
+        # Use the same matrix for consistency
+        M = R.from_euler("YXY", [0.25, 0.15, -0.35]).as_matrix()
+        first = _decompose_rotation_matrices_yxy(np.stack([M]))
+        second = _decompose_rotation_matrices_yxy(np.stack([M]))
+        assert np.allclose(first, second)
+
+    # Sensitivity across magnitudes: tiny and near-pi angles reconstruct
+    @pytest.mark.parametrize(
+        ("a", "b", "c"),
+        [
+            pytest.param(SMALL_ANGLE, SMALL_ANGLE, -
+                         SMALL_ANGLE, id="tiny-angles"),
+            pytest.param(1.2, np.pi - SMALL_ANGLE, -0.9, id="large-middle"),
+        ],
+    )
+    def test_small_and_large_angle_sensitivity(self, a, b, c):
+        M = R.from_euler("YXY", [a, b, c]).as_matrix()
+        angles = _decompose_rotation_matrices_yxy(np.stack([M]))[0]
+        recomposed = R.from_euler("YXY", angles).as_matrix()
+        assert np.allclose(recomposed, M, atol=TEST_PRECISION_TOLERANCE)
 
 
 class TestAccumulateEulerComponents:
@@ -670,7 +1004,7 @@ class TestAccumulateEulerComponents:
     )
     def test_returns_componentwise_sums(self, euler_angles, expected):
         """Returns the cumulative sum of each Euler component."""
-        result = accumulate_euler_components(euler_angles)
+        result = _accumulate_euler_components(euler_angles)
 
         assert result == pytest.approx(expected)
 
@@ -685,7 +1019,7 @@ class TestAccumulateEulerComponents:
         )
 
         expected = (5.0, 7.0, 9.0)
-        result = accumulate_euler_components(euler_angles)
+        result = _accumulate_euler_components(euler_angles)
 
         assert result == expected
 
@@ -701,7 +1035,7 @@ class TestAccumulateEulerComponents:
         )
         expected = (5.0, 7.0, 9.0)
 
-        result = accumulate_euler_components(
+        result = _accumulate_euler_components(
             euler_angles)  # type: ignore[arg-type]
 
         assert result == pytest.approx((5.0, 7.0, 9.0))
@@ -723,7 +1057,7 @@ class TestAccumulateEulerComponents:
             ValueError,
             match="euler_angles must have shape \\(n_steps, 3\\)",
         ):
-            accumulate_euler_components(invalid_shape)
+            _accumulate_euler_components(invalid_shape)
 
     def test_raises_for_empty_input(self):
         """Raises ValueError when no rows are provided."""
@@ -734,4 +1068,433 @@ class TestAccumulateEulerComponents:
             ValueError,
             match="euler_angles must contain at least one row",
         ):
-            accumulate_euler_components(euler_angles)
+            _accumulate_euler_components(euler_angles)
+
+
+class TestCalculateSingleBin:
+    @pytest.fixture
+    def relative_matrices(self) -> np.ndarray:
+        """Mock relative rotation matrices."""
+        rng = np.random.default_rng(42)
+        return rng.random((10, 3, 3))
+
+    @pytest.fixture
+    def postural_angles(self) -> MagicMock:
+        """Mock PosturalAngles."""
+        return MagicMock(spec=PosturalAngles)
+
+    @pytest.fixture
+    def bin_data(self) -> np.ndarray:
+        """Mock data extracted for a single heatmap bin."""
+        rng = np.random.default_rng(1)
+        return rng.random((5, 3, 3))
+
+    @pytest.fixture
+    def euler_angles(self) -> np.ndarray:
+        """Mock decomposed Euler angles."""
+        rng = np.random.default_rng(2)
+        return rng.random((5, 3))
+
+    def test_calls_dependencies_once_and_returns_expected_result(
+        self,
+        mocker,
+        relative_matrices,
+        postural_angles,
+        bin_data,
+        euler_angles,
+    ):
+        extract = mocker.patch(
+            "modules.bin_calcs._extract_bin_data",
+            return_value=bin_data,
+        )
+        decompose = mocker.patch(
+            "modules.bin_calcs._decompose_rotation_matrices_yxy",
+            return_value=euler_angles,
+        )
+        accumulate = mocker.patch(
+            "modules.bin_calcs._accumulate_euler_components",
+            return_value=(
+                np.float64(10.0),
+                np.float64(20.0),
+                np.float64(30.0),
+            ),
+        )
+
+        result = _calculate_single_bin(
+            relative_matrices=relative_matrices,
+            postural_angles=postural_angles,
+            elevation_start=0,
+            elevation_end=20,
+            poe_start=40,
+            poe_end=60,
+        )
+
+        extract.assert_called_once_with(
+            mocap_data=relative_matrices,
+            postural_data=postural_angles,
+            elevation_start=0,
+            elevation_end=20,
+            poe_start=40,
+            poe_end=60,
+        )
+        decompose.assert_called_once_with(bin_data)
+        accumulate.assert_called_once_with(euler_angles)
+
+        assert isinstance(result, BinRotationResult)
+        assert result.elevation == np.float64(10.0)
+        assert result.poe == np.float64(20.0)
+        assert result.ir_er == np.float64(30.0)
+        assert result.cumulative_motion == np.float64(60.0)
+        assert result.sample_count == 5
+
+    def test_returns_zero_result_when_bin_is_empty(
+        self,
+        mocker,
+        relative_matrices,
+        postural_angles,
+    ):
+        """Returns zeros and skips further processing when no data is found."""
+        empty_bin = np.empty((0, 3, 3))
+
+        extract = mocker.patch(
+            "modules.bin_calcs._extract_bin_data",
+            return_value=empty_bin,
+        )
+        decompose = mocker.patch(
+            "modules.bin_calcs._decompose_rotation_matrices_yxy",
+        )
+        accumulate = mocker.patch(
+            "modules.bin_calcs._accumulate_euler_components",
+        )
+
+        result = _calculate_single_bin(
+            relative_matrices=relative_matrices,
+            postural_angles=postural_angles,
+            elevation_start=0,
+            elevation_end=20,
+            poe_start=40,
+            poe_end=60,
+        )
+
+        extract.assert_called_once()
+        decompose.assert_not_called()
+        accumulate.assert_not_called()
+
+        assert isinstance(result, BinRotationResult)
+        assert result.elevation == np.float64(0)
+        assert result.poe == np.float64(0)
+        assert result.ir_er == np.float64(0)
+        assert result.cumulative_motion == np.float64(0)
+        assert result.sample_count == 0
+
+
+class TestAddBinResultToHeatmap:
+    """Tests for _add_bin_result_to_heatmap."""
+
+    @pytest.fixture
+    def heatmap(self) -> Heatmap:
+        """Create a heatmap with existing data."""
+        return Heatmap(
+            elevation=np.array([1.0, 2.0]),
+            poe=np.array([3.0, 4.0]),
+            ir_er=np.array([5.0, 6.0]),
+            cumulative_motion=np.array([9.0, 12.0]),
+            sample_count=np.array([10, 20]),
+        )
+
+    @pytest.fixture
+    def bin_result(self) -> BinRotationResult:
+        """Create a single bin result."""
+        return BinRotationResult(
+            elevation=np.float64(10.0),
+            poe=np.float64(20.0),
+            ir_er=np.float64(30.0),
+            cumulative_motion=np.float64(60.0),
+            sample_count=5,
+        )
+
+    def test_appends_bin_result_data_to_heatmap(
+        self,
+        heatmap: Heatmap,
+        bin_result: BinRotationResult,
+    ):
+        original_heatmap = heatmap
+        result = _add_bin_result_to_heatmap(
+            heatmap,
+            bin_result,
+        )
+
+        assert result is None
+
+        # Verify in-place modification
+        assert heatmap is original_heatmap
+
+        np.testing.assert_array_equal(
+            heatmap.elevation,
+            np.array([1.0, 2.0, 10.0]),
+        )
+        np.testing.assert_array_equal(
+            heatmap.poe,
+            np.array([3.0, 4.0, 20.0]),
+        )
+        np.testing.assert_array_equal(
+            heatmap.ir_er,
+            np.array([5.0, 6.0, 30.0]),
+        )
+        np.testing.assert_array_equal(
+            heatmap.cumulative_motion,
+            np.array([9.0, 12.0, 60.0]),
+        )
+        np.testing.assert_array_equal(
+            heatmap.sample_count,
+            np.array([10, 20, 5]),
+        )
+
+    def test_appends_to_empty_heatmap(
+        self,
+        bin_result: BinRotationResult,
+    ):
+        """Adds the first bin result correctly to an empty heatmap."""
+        heatmap = Heatmap(
+            elevation=np.array([]),
+            poe=np.array([]),
+            ir_er=np.array([]),
+            cumulative_motion=np.array([]),
+            sample_count=np.array([]),
+        )
+
+        _add_bin_result_to_heatmap(
+            heatmap,
+            bin_result,
+        )
+
+        np.testing.assert_array_equal(
+            heatmap.elevation,
+            np.array([10.0]),
+        )
+        np.testing.assert_array_equal(
+            heatmap.poe,
+            np.array([20.0]),
+        )
+        np.testing.assert_array_equal(
+            heatmap.ir_er,
+            np.array([30.0]),
+        )
+        np.testing.assert_array_equal(
+            heatmap.cumulative_motion,
+            np.array([60.0]),
+        )
+        np.testing.assert_array_equal(
+            heatmap.sample_count,
+            np.array([5]),
+        )
+
+
+class TestPopulateHeatmap:
+    """Tests for _populate_heatmap."""
+
+    @pytest.fixture
+    def heatmap(self) -> Heatmap:
+        """Create a test heatmap."""
+        return Heatmap(
+            bin_width=30,
+            elevation_range_end=180,
+            poe_range_end=360,
+            elevation=np.empty((0,), dtype=np.float64),
+            poe=np.empty((0,), dtype=np.float64),
+            ir_er=np.empty((0,), dtype=np.float64),
+            cumulative_motion=np.empty((0,), dtype=np.float64),
+            sample_count=np.empty((0,), dtype=np.int32),
+        )
+
+    @pytest.fixture
+    def postural_angles(self) -> MagicMock:
+        """Create mock postural angles."""
+        return MagicMock(spec=PosturalAngles)
+
+    @pytest.fixture
+    def relative_matrices(self):
+        """Create mock relative rotation matrices."""
+        return MagicMock()
+
+    @pytest.fixture
+    def bin_bounds(self) -> list[BinBounds]:
+        """Create known bin bounds."""
+        return [
+            BinBounds(
+                elevation_start=0,
+                elevation_end=30,
+                poe_start=0,
+                poe_end=30,
+            ),
+            BinBounds(
+                elevation_start=0,
+                elevation_end=30,
+                poe_start=30,
+                poe_end=60,
+            ),
+            BinBounds(
+                elevation_start=30,
+                elevation_end=60,
+                poe_start=0,
+                poe_end=30,
+            ),
+        ]
+
+    def test_calls_bin_functions_for_each_generated_bin(
+        self,
+        mocker,
+        heatmap,
+        relative_matrices,
+        postural_angles,
+        bin_bounds,
+    ):
+        """Calls bin calculation and addition once per bin."""
+
+        result = MagicMock(spec=BinRotationResult)
+
+        generate_bins = mocker.patch(
+            "modules.bin_calcs._generate_heatmap_bins",
+            return_value=iter(bin_bounds),
+        )
+        calculate_bin = mocker.patch(
+            "modules.bin_calcs._calculate_single_bin",
+            return_value=result,
+        )
+        add_result = mocker.patch(
+            "modules.bin_calcs._add_bin_result_to_heatmap",
+        )
+
+        _ = _populate_heatmap(
+            relative_matrices,
+            postural_angles,
+            heatmap,
+        )
+
+        generate_bins.assert_called_once_with(
+            heatmap.bin_width,
+            heatmap.elevation_range_end,
+            heatmap.poe_range_end,
+        )
+
+        assert calculate_bin.call_count == len(bin_bounds)
+        assert add_result.call_count == len(bin_bounds)
+
+        for bounds in bin_bounds:
+            calculate_bin.assert_any_call(
+                relative_matrices,
+                postural_angles,
+                **bounds.__dict__,
+            )
+
+        for _ in bin_bounds:
+            add_result.assert_any_call(
+                heatmap,
+                result,
+            )
+
+    def test_returns_heatmap_instance(
+        self,
+        mocker,
+        heatmap,
+        relative_matrices,
+        postural_angles,
+    ):
+        mocker.patch(
+            "modules.bin_calcs._generate_heatmap_bins",
+            return_value=iter([]),
+        )
+
+        result = _populate_heatmap(
+            relative_matrices,
+            postural_angles,
+            heatmap,
+        )
+
+        assert isinstance(result, Heatmap)
+        assert result is heatmap
+
+
+class TestCalculateBinRotations:
+    @pytest.fixture
+    def data(self) -> np.ndarray:
+        """Create mock input rotation data."""
+        return np.ones((10, 18))
+
+    @pytest.fixture
+    def validated_data(self) -> np.ndarray:
+        """Create mock validated data."""
+        return np.ones((10, 18), dtype=np.float64)
+
+    @pytest.fixture
+    def relative_matrices(self) -> np.ndarray:
+        """Create mock relative rotation matrices."""
+        return np.ones((9, 3, 3))
+
+    @pytest.fixture
+    def postural_angles(self) -> MagicMock:
+        """Create mock postural angles."""
+        return MagicMock()
+
+    @pytest.fixture
+    def heatmap(self) -> MagicMock:
+        """Create mock heatmap instance."""
+        return MagicMock(spec=Heatmap)
+
+    def test_calls_dependencies_once_and_returns_heatmap(
+        self,
+        mocker,
+        data,
+        validated_data,
+        relative_matrices,
+        postural_angles,
+        heatmap,
+    ):
+        """Calls each processing step once and returns a Heatmap."""
+
+        validate = mocker.patch(
+            "modules.bin_calcs._validate_rotation_data",
+            return_value=validated_data,
+        )
+        calculate_relative = mocker.patch(
+            "modules.bin_calcs._calculate_relative_motion",
+            return_value=(
+                relative_matrices,
+                postural_angles,
+            ),
+        )
+        heatmap_constructor = mocker.patch(
+            "modules.bin_calcs.Heatmap",
+            return_value=heatmap,
+        )
+        populate = mocker.patch(
+            "modules.bin_calcs._populate_heatmap",
+            return_value=heatmap,
+        )
+
+        result = calculate_bin_rotations(
+            data,
+            "left",
+        )
+
+        validate.assert_called_once_with(
+            data,
+            "left",
+        )
+
+        calculate_relative.assert_called_once_with(
+            validated_data,
+            "left",
+        )
+
+        heatmap_constructor.assert_called_once_with()
+
+        populate.assert_called_once_with(
+            relative_matrices,
+            postural_angles,
+            heatmap,
+        )
+
+        assert isinstance(result, Heatmap)
+        assert result is heatmap
+
