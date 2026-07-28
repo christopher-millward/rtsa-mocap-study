@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
-from typing import Literal, NamedTuple
+from typing import Literal, Tuple
 from scipy.spatial.transform import Rotation as R
 from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
@@ -134,7 +134,7 @@ def compute_incremental_rotation_matrices(
 def decompose_rotation_matrices_yxy(
     relative_rotations: npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
-    """Decompose relative rotations into Euler components using Y-X-Y sequence.
+    """Decompose relative rotations into absolute Euler components using Y-X-Y sequence.
 
     This function will perform a batch decomposition of each 3x3 relative
     rotation matrix into three Euler angles following the ISB-recommended 
@@ -154,7 +154,7 @@ def decompose_rotation_matrices_yxy(
             with shape (n_steps, 3, 3).
 
     Returns:
-        npt.NDArray[np.float64]: Euler angles in radians with shape
+        npt.NDArray[np.float64]: Absolute euler angles in radians with shape
             (n_steps, 3), ordered as (first_Y, X, second_Y).
 
     Raises:
@@ -162,7 +162,6 @@ def decompose_rotation_matrices_yxy(
     """
     # Coerce to ndarray with correct dtype
     matrices = np.asarray(relative_rotations, dtype=np.float64)
-
 
     # Validate shape is (n_frames, 3, 3)
     if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
@@ -256,6 +255,48 @@ def extract_bin_data(
 
     # Keep only rows satisfying both conditions
     return mocap_data[elevation_mask & poe_mask]
+
+def accumulate_euler_components(
+    euler_angles: npt.NDArray[np.float64],
+) -> Tuple[np.float64, np.float64, np.float64]:
+    """Sum Euler components independently across all timestep transitions.
+
+    Given a matrix of decomposed Euler angles, this function will first take 
+    the absolute value of each angle to ensure all values are positive, then
+    sum each component independently to produce cumulative motion values for 
+    the three sequence positions. 
+
+    Args:
+        euler_angles (npt.NDArray[np.float64]): Array of Euler angles with shape
+            (n_steps, 3).
+
+    Returns:
+        Tuple[np.float64, np.float64, np.float64]: Cumulative sums of the first,
+        second, and third Euler components, respectively.
+
+    Raises:
+        ValueError: If input does not have shape (n_steps, 3).
+        ValueError: If input is empty.
+    """
+    
+    # Ensure correct dtype
+    all_components = np.asarray(euler_angles, dtype=np.float64)
+
+    # Validate shape is 2D with exactly 3 columns
+    if all_components.ndim != 2 or all_components.shape[1] != 3:
+        raise ValueError("euler_angles must have shape (n_steps, 3)")
+
+    # Reject empty batch
+    if all_components.shape[0] == 0:
+        raise ValueError("euler_angles must contain at least one row")
+    
+    # Coerce all values to be non-negative
+    all_components = np.abs(all_components)
+
+    # Sum each column (component) across rows and convert to native floats
+    sums: npt.NDArray[np.float64] = np.sum(all_components, axis=0)
+
+    return (sums[0], sums[1], sums[2])
 
 
 def calculate_bin_rotations(
