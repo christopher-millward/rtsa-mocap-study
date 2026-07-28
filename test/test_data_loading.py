@@ -204,7 +204,7 @@ class TestLoadParticipantDetails:
         assert participants[0].filename == filename
         assert participants[0].age == age
 
-    def test_should_initialize_nested_arm_rotation_details_to_none_and_zeros(self):
+    def test_should_initialize_nested_arm_rotation_details_to_expected_values(self):
         participants = _load_from_rows(
             [
                 {
@@ -224,6 +224,8 @@ class TestLoadParticipantDetails:
         left = participant.left.humerothoracic.heatmap
 
         assert left.bin_width == 20
+        assert left.elevation_range_end == 180
+        assert left.poe_range_end == 360
         np.testing.assert_array_equal(left.elevation, np.empty((0, 0)))
         np.testing.assert_array_equal(left.poe, np.empty((0, 0)))
         np.testing.assert_array_equal(left.ir_er, np.empty((0, 0)))

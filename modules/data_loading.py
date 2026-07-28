@@ -31,6 +31,8 @@ class Heatmap:
     """
 
     bin_width: int = 20
+    elevation_range_end: int = 180
+    poe_range_end: int = 360
 
     elevation: npt.NDArray[np.float64] = field(
         default_factory=lambda: np.empty((0, 0), dtype=np.float64)
@@ -49,9 +51,14 @@ class Heatmap:
     )
 
     def __post_init__(self) -> None:
-        if 360 % self.bin_width != 0:
+        if self.elevation_range_end % self.bin_width != 0:
             raise ValueError(
-                f"bin_width ({self.bin_width}) must evenly divide 360."
+                f"bin_width ({self.bin_width}) must evenly divide {self.elevation_range_end}."
+            )
+
+        if self.poe_range_end % self.bin_width != 0:
+            raise ValueError(
+                f"bin_width ({self.bin_width}) must evenly divide {self.poe_range_end}."
             )
 
 
