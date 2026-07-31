@@ -14,8 +14,8 @@ class Heatmap:
     Type definition for a heatmap.
 
     Each of elevation, poe, and ir_er is a 2D array representing the cumulative 
-    motion in each bin of the heatmap. The shape of these arrays is determined 
-    by the bin_width, which must evenly divide 360 degrees.
+    motion in each bin (grid cell) of the heatmap. The shape of these arrays is
+    determined by the bin_width, which must evenly divide 360 degrees.
 
     Attributes:
         bin_width (int): Width of each heatmap bin in degrees.
