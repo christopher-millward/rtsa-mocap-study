@@ -2,15 +2,14 @@
 Main module to run the full analysis pipeline for the study.
 Author: Christopher Millward
 """
-import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
-from typing import Any, cast
 from modules.bin_calcs import calculate_bin_rotations
 from modules.data_loading import load_participant_details, load_motion_capture_data
 from modules.data_preprocessing import clean_and_validate_data
 from modules.cumulative_rotation import calculate_total_rotation
-from config import RAW_DATA_DIR, RESULTS_PATH
+from modules.data_saving import save_data_to_pickle
+from config import RAW_DATA_DIR
 
 # ---- Vars ----
 details_path = Path(RAW_DATA_DIR) / "participant_details.xlsx"
@@ -70,13 +69,8 @@ def main():
         - Flatten the data object into separate entities (details, heatmap, etc.) and save each
         as either a separate CSV or a parquet.
     """
-    
-    # write data object to a CSV file
-    df = pd.json_normalize(
-        cast(list[dict[str, Any]], participant_details),
-        sep="_",
-    )
-    df.to_csv(RESULTS_PATH, index=False)
+    # Save data 
+    save_data_to_pickle(participant_details, Path("outputs/all_results.pkl"))
 
 if __name__ == "__main__":
     main()
