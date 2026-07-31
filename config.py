@@ -6,6 +6,7 @@ RAW_DATA_DIR = DATA_DIR / "raw_normalized_data"
 OUTPUTS_DIR = PROJ_ROOT / "outputs"
 
 # Specific files
+RAW_PARTICIPANT_DETAILS_PATH = RAW_DATA_DIR / "participant_details.xlsx"
 RESULTS_PICKLE_PATH = OUTPUTS_DIR / "all_results.pkl"
 RESULTS_HEATMAP_CSV_PATH = OUTPUTS_DIR / "heatmap_results_data.csv"
 

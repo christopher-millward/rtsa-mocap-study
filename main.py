@@ -9,17 +9,14 @@ from modules.data_loading import load_participant_details, load_motion_capture_d
 from modules.data_preprocessing import clean_and_validate_data
 from modules.cumulative_rotation import calculate_total_rotation
 from modules.data_saving import save_data_to_pickle
-from config import RAW_DATA_DIR
-
-# ---- Vars ----
-details_path = Path(RAW_DATA_DIR) / "participant_details.xlsx"
+from config import RAW_PARTICIPANT_DETAILS_PATH, RESULTS_PICKLE_PATH
 
 
 def main():
     """This function orchestrates the entire analysis pipeline."""
 
     # Load participant details from the Excel file
-    participant_details = load_participant_details(details_path)
+    participant_details = load_participant_details(RAW_PARTICIPANT_DETAILS_PATH)
 
     # Set up progress bar
     progress = tqdm(
@@ -70,7 +67,7 @@ def main():
         as either a separate CSV or a parquet.
     """
     # Save data 
-    save_data_to_pickle(participant_details, Path("outputs/all_results.pkl"))
+    save_data_to_pickle(participant_details, Path(RESULTS_PICKLE_PATH))
 
 if __name__ == "__main__":
     main()
