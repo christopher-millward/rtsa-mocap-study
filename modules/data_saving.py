@@ -5,7 +5,6 @@ import pickle
 def save_data_to_pickle(data, file_path):
     """Saves the given data object to a pickle file at the specified file path.
 
-
     Args:
         data: The data object to be saved.
         file_path: The path to the pickle file where the data will be saved.
