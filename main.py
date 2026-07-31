@@ -58,16 +58,9 @@ def main():
         participant_details[i].left.humerothoracic.heatmap = left_bin_calcs
 
 
-
-    """
-    We have an error here with the saving because all of the data is nested. 
-    The following operations will have to be performed:
-        - Save the entire data object as a pickle file for easier loading directly into python.
-        - Flatten the data object into separate entities (details, heatmap, etc.) and save each
-        as either a separate CSV or a parquet.
-    """
     # Save data 
     save_data_to_pickle(participant_details, Path(RESULTS_PICKLE_PATH))
+    # save_heatmap_to_csv(participant_details, Path(RESULTS_HEATMAP_CSV_PATH))
 
 if __name__ == "__main__":
     main()
