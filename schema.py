@@ -19,10 +19,10 @@ class Heatmap:
 
     Attributes:
         bin_width (int): Width of each heatmap bin in degrees.
-        elevation (npt.NDArray[np.float64]): Cumulative elevation motion.
-        poe (npt.NDArray[np.float64]): Cumulative plane-of-elevation motion.
-        ir_er (npt.NDArray[np.float64]): Cumulative internal/external rotation motion.
-        cumulative_motion (npt.NDArray[np.float64]): Total cumulative motion.
+        elevation (npt.NDArray[np.float64]): Array of cumulative elevation motion.
+        poe (npt.NDArray[np.float64]): Array of cumulative plane-of-elevation motion.
+        ir_er (npt.NDArray[np.float64]): Array of cumulative internal/external rotation motion.
+        cumulative_motion (npt.NDArray[np.float64]): Array of total cumulative motion.
         sample_count (npt.NDArray[np.int32]): Number of samples contributing to each bin.
     """
 
