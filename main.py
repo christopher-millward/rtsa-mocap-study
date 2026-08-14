@@ -18,6 +18,9 @@ def main():
     # Load participant details from the Excel file
     participant_details = load_participant_details(RAW_PARTICIPANT_DETAILS_PATH)
 
+    # remove all files with no RTSA
+    participant_details = [participant for participant in participant_details if participant.rtsa_side is not None]
+
     # Set up progress bar
     progress = tqdm(
         enumerate(participant_details),
@@ -29,10 +32,6 @@ def main():
     # For each participant
     for i, participant in progress:
         progress.set_postfix(file=participant.filename)
-
-        # skip file if there is no RTSA
-        if participant.rtsa_side is None:
-            continue
 
         # load the data
         raw_data = load_motion_capture_data(participant.filename)
