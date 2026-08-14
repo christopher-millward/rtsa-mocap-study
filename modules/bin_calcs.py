@@ -500,22 +500,26 @@ def _calculate_single_bin(
 def _add_bin_result_to_heatmap(
     heatmap: Heatmap,
     result: BinRotationResult,
+    elevation_index: int,
+    poe_index: int,
 ) -> None:
-    """Helper function to append a single bin result to a heatmap.
+    """Helper function to write a single bin result to a heatmap cell.
 
     Args:
         heatmap (Heatmap): The heatmap to update.
-        result (BinRotationResult): The result to append.
+        result (BinRotationResult): The result to write.
+        elevation_index (int): Row index for the elevation bin.
+        poe_index (int): Column index for the POE bin.
 
     Returns:
         None: The heatmap is updated in place.
     """
 
-    heatmap.elevation = np.append(heatmap.elevation, result.elevation)
-    heatmap.poe = np.append(heatmap.poe, result.poe)
-    heatmap.ir_er = np.append(heatmap.ir_er, result.ir_er)
-    heatmap.cumulative_motion = np.append(heatmap.cumulative_motion, result.cumulative_motion)
-    heatmap.sample_count = np.append(heatmap.sample_count, result.sample_count)
+    heatmap.elevation[elevation_index, poe_index] = result.elevation
+    heatmap.poe[elevation_index, poe_index] = result.poe
+    heatmap.ir_er[elevation_index, poe_index] = result.ir_er
+    heatmap.cumulative_motion[elevation_index, poe_index] = result.cumulative_motion
+    heatmap.sample_count[elevation_index, poe_index] = result.sample_count
 
 
 def _populate_heatmap(
@@ -534,6 +538,15 @@ def _populate_heatmap(
         Heatmap: Updated heatmap with calculated metrics for each bin.
     """
 
+    n_elevation_bins, n_poe_bins = heatmap.shape
+
+    # Pre-allocate 2D arrays so each bin result maps directly to one grid cell.
+    heatmap.elevation = np.zeros((n_elevation_bins, n_poe_bins), dtype=np.float64)
+    heatmap.poe = np.zeros((n_elevation_bins, n_poe_bins), dtype=np.float64)
+    heatmap.ir_er = np.zeros((n_elevation_bins, n_poe_bins), dtype=np.float64)
+    heatmap.cumulative_motion = np.zeros((n_elevation_bins, n_poe_bins), dtype=np.float64)
+    heatmap.sample_count = np.zeros((n_elevation_bins, n_poe_bins), dtype=np.int32)
+
     for bin_bounds in _generate_heatmap_bins(
         heatmap.bin_width,
         heatmap.elevation_range_end,
@@ -545,9 +558,14 @@ def _populate_heatmap(
             **bin_bounds.__dict__,
         )
 
+        elevation_index = bin_bounds.elevation_start // heatmap.bin_width
+        poe_index = bin_bounds.poe_start // heatmap.bin_width
+
         _add_bin_result_to_heatmap(
             heatmap,
             result,
+            elevation_index,
+            poe_index,
         )
 
     return heatmap

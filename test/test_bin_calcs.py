@@ -1193,13 +1193,16 @@ class TestAddBinResultToHeatmap:
 
     @pytest.fixture
     def heatmap(self) -> Heatmap:
-        """Create a heatmap with existing data."""
+        """Create a heatmap with existing 2D data."""
         return Heatmap(
-            elevation=np.array([1.0, 2.0]),
-            poe=np.array([3.0, 4.0]),
-            ir_er=np.array([5.0, 6.0]),
-            cumulative_motion=np.array([9.0, 12.0]),
-            sample_count=np.array([10, 20]),
+            bin_width=90,
+            elevation_range_end=180,
+            poe_range_end=180,
+            elevation=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            poe=np.array([[5.0, 6.0], [7.0, 8.0]]),
+            ir_er=np.array([[9.0, 10.0], [11.0, 12.0]]),
+            cumulative_motion=np.array([[15.0, 18.0], [21.0, 24.0]]),
+            sample_count=np.array([[30, 40], [50, 60]], dtype=np.int32),
         )
 
     @pytest.fixture
@@ -1213,7 +1216,7 @@ class TestAddBinResultToHeatmap:
             sample_count=5,
         )
 
-    def test_appends_bin_result_data_to_heatmap(
+    def test_writes_bin_result_data_to_expected_heatmap_cell(
         self,
         heatmap: Heatmap,
         bin_result: BinRotationResult,
@@ -1222,6 +1225,8 @@ class TestAddBinResultToHeatmap:
         result = _add_bin_result_to_heatmap(
             heatmap,
             bin_result,
+            elevation_index=1,
+            poe_index=0,
         )
 
         assert result is None
@@ -1231,62 +1236,67 @@ class TestAddBinResultToHeatmap:
 
         np.testing.assert_array_equal(
             heatmap.elevation,
-            np.array([1.0, 2.0, 10.0]),
+            np.array([[1.0, 2.0], [10.0, 4.0]]),
         )
         np.testing.assert_array_equal(
             heatmap.poe,
-            np.array([3.0, 4.0, 20.0]),
+            np.array([[5.0, 6.0], [20.0, 8.0]]),
         )
         np.testing.assert_array_equal(
             heatmap.ir_er,
-            np.array([5.0, 6.0, 30.0]),
+            np.array([[9.0, 10.0], [30.0, 12.0]]),
         )
         np.testing.assert_array_equal(
             heatmap.cumulative_motion,
-            np.array([9.0, 12.0, 60.0]),
+            np.array([[15.0, 18.0], [60.0, 24.0]]),
         )
         np.testing.assert_array_equal(
             heatmap.sample_count,
-            np.array([10, 20, 5]),
+            np.array([[30, 40], [5, 60]], dtype=np.int32),
         )
 
-    def test_appends_to_empty_heatmap(
+    def test_writes_to_preallocated_empty_heatmap(
         self,
         bin_result: BinRotationResult,
     ):
-        """Adds the first bin result correctly to an empty heatmap."""
+        """Writes the first bin result into the specified cell."""
         heatmap = Heatmap(
-            elevation=np.array([]),
-            poe=np.array([]),
-            ir_er=np.array([]),
-            cumulative_motion=np.array([]),
-            sample_count=np.array([]),
+            bin_width=90,
+            elevation_range_end=180,
+            poe_range_end=180,
+            elevation=np.zeros((2, 2), dtype=np.float64),
+            poe=np.zeros((2, 2), dtype=np.float64),
+            ir_er=np.zeros((2, 2), dtype=np.float64),
+            cumulative_motion=np.zeros((2, 2), dtype=np.float64),
+            sample_count=np.zeros((2, 2), dtype=np.int32),
         )
 
         _add_bin_result_to_heatmap(
             heatmap,
             bin_result,
+            elevation_index=0,
+            poe_index=1,
         )
 
         np.testing.assert_array_equal(
             heatmap.elevation,
-            np.array([10.0]),
+            np.array([[0.0, 10.0], [0.0, 0.0]]),
         )
         np.testing.assert_array_equal(
             heatmap.poe,
-            np.array([20.0]),
+            np.array([[0.0, 20.0], [0.0, 0.0]]),
         )
         np.testing.assert_array_equal(
             heatmap.ir_er,
-            np.array([30.0]),
+            np.array([[0.0, 30.0], [0.0, 0.0]]),
         )
         np.testing.assert_array_equal(
             heatmap.cumulative_motion,
-            np.array([60.0]),
+            np.array([[0.0, 60.0], [0.0, 0.0]]),
         )
         np.testing.assert_array_equal(
             heatmap.sample_count,
-            np.array([5]),
+            np.array([[0, 5], [0, 0]], dtype=np.int32),
         )
 
 
@@ -1300,11 +1310,11 @@ class TestPopulateHeatmap:
             bin_width=30,
             elevation_range_end=180,
             poe_range_end=360,
-            elevation=np.empty((0,), dtype=np.float64),
-            poe=np.empty((0,), dtype=np.float64),
-            ir_er=np.empty((0,), dtype=np.float64),
-            cumulative_motion=np.empty((0,), dtype=np.float64),
-            sample_count=np.empty((0,), dtype=np.int32),
+            elevation=np.empty((0, 0), dtype=np.float64),
+            poe=np.empty((0, 0), dtype=np.float64),
+            ir_er=np.empty((0, 0), dtype=np.float64),
+            cumulative_motion=np.empty((0, 0), dtype=np.float64),
+            sample_count=np.empty((0, 0), dtype=np.int32),
         )
 
     @pytest.fixture
@@ -1387,10 +1397,12 @@ class TestPopulateHeatmap:
                 **bounds.__dict__,
             )
 
-        for _ in bin_bounds:
+        for bounds in bin_bounds:
             add_result.assert_any_call(
                 heatmap,
                 result,
+                bounds.elevation_start // heatmap.bin_width,
+                bounds.poe_start // heatmap.bin_width,
             )
 
     def test_returns_heatmap_instance(
