@@ -20,6 +20,8 @@ class Heatmap:
 
     Attributes:
         bin_width (int): Width of each heatmap bin in degrees.
+        elevation_range_end (int): End of the elevation range in degrees.
+        poe_range_end (int): End of the plane-of-elevation range in degrees.
         elevation (npt.NDArray[np.float64]): Array of cumulative elevation motion.
         poe (npt.NDArray[np.float64]): Array of cumulative plane-of-elevation motion.
         ir_er (npt.NDArray[np.float64]): Array of cumulative internal/external rotation motion.
