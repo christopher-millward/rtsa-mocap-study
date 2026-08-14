@@ -72,6 +72,12 @@ class Heatmap:
             and np.array_equal(self.sample_count, other.sample_count)
         )
 
+    def __shape__(self) -> tuple[int, int]:
+        """Return the shape of the heatmap arrays."""
+        n_elev_bins = self.elevation_range_end // self.bin_width
+        n_poe_bins = self.poe_range_end // self.bin_width
+        return (n_elev_bins, n_poe_bins)
+
 @dataclass
 class RotationData:
     """Type definition for rotation data.
