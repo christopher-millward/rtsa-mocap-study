@@ -111,14 +111,14 @@ class ParticipantDetails():
 
     Attributes:
         filename (Path): The participant's filename identifier.
-        rtsa_side ('right' | 'left' | 'both' | None): Side of Reverse TSA procedure
-            ('right', 'left', 'both', or None if no RTSA).
+        rtsa_side ('right' | 'left' | 'both' | None): Side of Reverse TSA procedure ('right', 'left', 'both', or None if no RTSA).
         tsa_side ('right' | 'left' | 'both' | None): Side of TSA procedure ('right', 'left', 'both', or 'none').
-        dominant_arm ('right' | 'left' | None): Participant's dominant arm
-            ('right', 'left', or None).
+        dominant_arm ('right' | 'left' | None): Participant's dominant arm ('right', 'left', or None).
         age (int): Participant's age in years.
         left (ArmRotationDetails): Rotation summary metrics for the left arm.
         right (ArmRotationDetails): Rotation summary metrics for the right arm.
+        operated (list[ArmRotationDetails]): A list of the rotation summary metrics for the operated arm(s).
+        non_operated (list[ArmRotationDetails]): A list of the rotation summary metrics for the non-operated arm(s).
     """
 
     filename: Path
@@ -128,3 +128,27 @@ class ParticipantDetails():
     age: int
     left: ArmRotationDetails
     right: ArmRotationDetails
+
+    @property
+    def operated(self) -> list[ArmRotationDetails]:
+        """Return the operated arm(s)."""
+        match self.rtsa_side:
+            case "left":
+                return [self.left]
+            case "right":
+                return [self.right]
+            case "both":
+                return [self.left, self.right]
+            case None:
+                return []
+
+    @property
+    def non_operated(self) -> list[ArmRotationDetails]:
+        """Return the non-operated arm(s)."""
+        match self.rtsa_side:
+            case "left":
+                return [self.right]
+            case "right":
+                return [self.left]
+            case "both" | None:
+                return []
