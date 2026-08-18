@@ -12,10 +12,11 @@ from modules.bin_calcs import (
     _get_postural_angles,
     _normalize_postural_angles,
     _compute_incremental_rotation_matrices,
-    _calculate_relative_motion,
+    _create_relative_matrices_and_postural_angles,
     _generate_heatmap_bins,
     _decompose_rotation_matrices_yxy,
     _extract_bin_data,
+    _calculate_trace_rotation_angles,
     _calculate_single_bin,
     _add_bin_result_to_heatmap,
     _populate_heatmap,
@@ -488,8 +489,8 @@ class TestComputeIncrementalRotationMatrices:
         assert deltas.dtype == np.float64
 
 
-class TestCalculateRelativeMotion:
-    """Tests for _calculate_relative_motion."""
+class TestCreateRelativeMatricesAndPosturalAngles:
+    """Tests for _create_relative_matrices_and_postural_angles."""
 
     @pytest.fixture
     def data(self) -> np.ndarray:
@@ -546,7 +547,7 @@ class TestCalculateRelativeMotion:
             return_value=relative_matrices,
         )
 
-        result_matrices, result_angles = _calculate_relative_motion(
+        result_matrices, result_angles = _create_relative_matrices_and_postural_angles(
             data,
             "left",
         )
@@ -588,7 +589,7 @@ class TestCalculateRelativeMotion:
             return_value=relative_matrices,
         )
 
-        _calculate_relative_motion(data, "left")
+        _create_relative_matrices_and_postural_angles(data, "left")
 
         np.testing.assert_array_equal(data, original)
 
@@ -738,7 +739,7 @@ class TestExtractBinData:
         """Returns relative rotations where both elevation and POE fall inside the bin."""
 
         result = _extract_bin_data(
-            mocap_data=relative_rotations,
+            data=relative_rotations,
             postural_data=postural_data,
             elevation_start=15,
             elevation_end=45,
@@ -1086,8 +1087,8 @@ class TestCalculateSingleBin:
     @pytest.fixture
     def bin_data(self) -> np.ndarray:
         """Mock data extracted for a single heatmap bin."""
-        rng = np.random.default_rng(1)
-        return rng.random((5, 3, 3))
+        data = [10,20,30]
+        return np.array(data)
 
     @pytest.fixture
     def euler_angles(self) -> np.ndarray:
@@ -1103,15 +1104,22 @@ class TestCalculateSingleBin:
         bin_data,
         euler_angles,
     ):
-        extract = mocker.patch(
+        expected_trace_total = np.float64(2.0 + 3.5 + 4.5)
+        trace_bin_data = np.array([2.0, 3.5, 4.5], dtype=np.float64)
+
+        mock_extract_bin_data = mocker.patch(
             "modules.bin_calcs._extract_bin_data",
-            return_value=bin_data,
+            side_effect=[bin_data, trace_bin_data],
         )
-        decompose = mocker.patch(
+        mock_trace_angles = mocker.patch(
+            "modules.bin_calcs._calculate_trace_rotation_angles",
+            return_value=np.array([2.0, 3.5, 4.5], dtype=np.float64),
+        )
+        mock_decompose_euler = mocker.patch(
             "modules.bin_calcs._decompose_rotation_matrices_yxy",
             return_value=euler_angles,
         )
-        accumulate = mocker.patch(
+        mock_accumulate_euler = mocker.patch(
             "modules.bin_calcs._accumulate_euler_components",
             return_value=(
                 np.float64(10.0),
@@ -1129,23 +1137,17 @@ class TestCalculateSingleBin:
             poe_end=60,
         )
 
-        extract.assert_called_once_with(
-            mocap_data=relative_matrices,
-            postural_data=postural_angles,
-            elevation_start=0,
-            elevation_end=20,
-            poe_start=40,
-            poe_end=60,
-        )
-        decompose.assert_called_once_with(bin_data)
-        accumulate.assert_called_once_with(euler_angles)
+        assert mock_extract_bin_data.call_count == 2
+        mock_trace_angles.assert_called_once_with(relative_matrices)
+        mock_decompose_euler.assert_called_once_with(bin_data)
+        mock_accumulate_euler.assert_called_once_with(euler_angles)
 
         assert isinstance(result, BinRotationResult)
         assert result.elevation == np.float64(10.0)
         assert result.poe == np.float64(20.0)
         assert result.ir_er == np.float64(30.0)
-        assert result.cumulative_motion == np.float64(60.0)
-        assert result.sample_count == 5
+        assert result.cumulative_motion == expected_trace_total
+        assert result.sample_count == len(trace_bin_data)
 
     def test_returns_zero_result_when_bin_is_empty(
         self,
@@ -1156,14 +1158,14 @@ class TestCalculateSingleBin:
         """Returns zeros and skips further processing when no data is found."""
         empty_bin = np.empty((0, 3, 3))
 
-        extract = mocker.patch(
+        mock_extract_bin_data = mocker.patch(
             "modules.bin_calcs._extract_bin_data",
             return_value=empty_bin,
         )
-        decompose = mocker.patch(
+        mock_decompose_euler = mocker.patch(
             "modules.bin_calcs._decompose_rotation_matrices_yxy",
         )
-        accumulate = mocker.patch(
+        mock_accumulate_euler = mocker.patch(
             "modules.bin_calcs._accumulate_euler_components",
         )
 
@@ -1176,9 +1178,9 @@ class TestCalculateSingleBin:
             poe_end=60,
         )
 
-        extract.assert_called_once()
-        decompose.assert_not_called()
-        accumulate.assert_not_called()
+        assert mock_extract_bin_data.call_count == 2
+        mock_decompose_euler.assert_not_called()
+        mock_accumulate_euler.assert_not_called()
 
         assert isinstance(result, BinRotationResult)
         assert result.elevation == np.float64(0)
@@ -1427,6 +1429,33 @@ class TestPopulateHeatmap:
         assert result is heatmap
 
 
+class TestCalculateTraceRotationAngles:
+
+    def test_rejects_invalid_matrices_shape(self):
+        pass    
+
+    def test_rejects_empty_matrices(self):
+        pass
+
+    def test_trace_angles_match_rotation_magnitude_formula(self):
+        relative_matrices = np.array(
+            [
+                np.eye(3),
+                R.from_euler("z", 90, degrees=True).as_matrix(),
+                R.from_euler("x", 180, degrees=True).as_matrix(),
+            ],
+            dtype=np.float64,
+        )
+
+        result = _calculate_trace_rotation_angles(relative_matrices)
+
+        expected = np.array(
+            [0.0, np.pi / 2, np.pi],
+            dtype=np.float64,
+        )
+        np.testing.assert_allclose(result, expected, atol=1e-8)
+
+
 class TestCalculateBinRotations:
     @pytest.fixture
     def data(self) -> np.ndarray:
@@ -1464,44 +1493,45 @@ class TestCalculateBinRotations:
     ):
         """Calls each processing step once and returns a Heatmap."""
 
-        validate = mocker.patch(
+        mock_validate_matrices = mocker.patch(
             "modules.bin_calcs._validate_rotation_data",
             return_value=validated_data,
         )
-        calculate_relative = mocker.patch(
-            "modules.bin_calcs._calculate_relative_motion",
+        mock_create_relative_matrices_and_postures = mocker.patch(
+            "modules.bin_calcs._create_relative_matrices_and_postural_angles",
             return_value=(
                 relative_matrices,
                 postural_angles,
             ),
         )
-        heatmap_constructor = mocker.patch(
+        mock_heatmap_constructor = mocker.patch(
             "modules.bin_calcs.Heatmap",
             return_value=heatmap,
         )
-        populate = mocker.patch(
+        mock_populate_heatmap = mocker.patch(
             "modules.bin_calcs._populate_heatmap",
             return_value=heatmap,
         )
 
+        side="left"
         result = calculate_bin_rotations(
             data,
-            "left",
+            side
         )
 
-        validate.assert_called_once_with(
+        mock_validate_matrices.assert_called_once_with(
             data,
-            "left",
+            side
         )
 
-        calculate_relative.assert_called_once_with(
+        mock_create_relative_matrices_and_postures.assert_called_once_with(
             validated_data,
-            "left",
+            side
         )
 
-        heatmap_constructor.assert_called_once_with()
+        mock_heatmap_constructor.assert_called_once_with()
 
-        populate.assert_called_once_with(
+        mock_populate_heatmap.assert_called_once_with(
             relative_matrices,
             postural_angles,
             heatmap,

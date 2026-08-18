@@ -204,7 +204,7 @@ def _compute_incremental_rotation_matrices(
     return deltas
 
 
-def _calculate_relative_motion(
+def _create_relative_matrices_and_postural_angles(
     data: npt.NDArray[np.float64],
     arm: Literal["left", "right"],
 ) -> tuple[
@@ -266,7 +266,7 @@ def _generate_heatmap_bins(
 
 
 def _extract_bin_data(
-    mocap_data: npt.NDArray[np.float64],
+    data: npt.NDArray[np.float64],
     postural_data: PosturalAngles,
     elevation_start: float,
     elevation_end: float,
@@ -276,7 +276,7 @@ def _extract_bin_data(
     """Extract rows of data that fall within a specified elevation and POE bin.
 
     Args:
-        mocap_data (npt.NDArray[np.float64]): A series of R matrices with shape (n_frames, 3, 3) representing the relative rotation matrices for each frame.
+        data (npt.NDArray[np.float64]): An array of data that you wish to filter. Must be same length of postural_data.
 
         postural_data (PosturalAngles): The postural angles for each frame in shape (n_frames,). Expected columns:
             0 = POE, 
@@ -291,17 +291,14 @@ def _extract_bin_data(
 
     Returns:
         npt.NDArray[np.float64]: Subset of the original data that falls within
-        the specified elevation and POE bin.
+        the specified elevation and POE bin. Will have the length of `len(data) - 1`,
+        because the last frame is omitted for relative rotations.
 
     Raises:
+        TypeError: If postural_data is not a PosturalAngles instance.
+        ValueError: If postural_data has None values for poe or elevation.
         ValueError: If either bin has invalid bounds.
-        IndexError: If the input array does not contain enough columns.
     """
-
-    # Validate input dimensions
-    # mocap data shape n, 3, 3
-    if mocap_data.shape[1:] != (3, 3):
-        raise ValueError("mocap_data must have shape (n_frames, 3, 3)")
 
     # postural data needs 3 cols
     if not isinstance(postural_data, PosturalAngles):
@@ -339,7 +336,36 @@ def _extract_bin_data(
     )[:-1]
 
     # Keep only rows satisfying both conditions
-    return mocap_data[elevation_mask & poe_mask]
+    return data[elevation_mask & poe_mask]
+
+
+def _calculate_trace_rotation_angles(
+    rotation_matrices: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
+    """Calculate the rotation angle for each relative rotation matrix using the trace formula.
+
+    For each proper rotation matrix, the magnitude of the rotation is computed as:
+        theta = arccos((trace(R) - 1) / 2)
+
+    Args:
+        rotation_matrices (npt.NDArray[np.float64]): Relative rotation matrices
+            with shape (n_steps, 3, 3).
+
+    Returns:
+        npt.NDArray[np.float64]: Rotation magnitudes in radians, with shape (n_steps,).
+    """
+    matrices = np.asarray(rotation_matrices, dtype=np.float64)
+
+    if matrices.ndim != 3 or matrices.shape[1:] != (3, 3):
+        raise ValueError("rotation_matrices must have shape (n_steps, 3, 3)")
+
+    if matrices.shape[0] == 0:
+        raise ValueError("rotation_matrices must contain at least one matrix")
+
+    traces = np.trace(matrices, axis1=1, axis2=2)
+    cos_angles = np.clip((traces - 1.0) / 2.0, -1.0, 1.0)
+
+    return np.asarray(np.arccos(cos_angles), dtype=np.float64)
 
 
 def _decompose_rotation_matrices_yxy(
@@ -458,9 +484,23 @@ def _calculate_single_bin(
     Returns:
         BinRotationResult: A data class containing the calculated metrics.
     """
+    # Calculate trace angles for each relative rotation matrix. This will be 
+    # used to compute cumulative motion. Must be done before filtering the 
+    # data to ensure that the trace angles correspond to the same relative 
+    # rotations.
+    trace_angles = _calculate_trace_rotation_angles(relative_matrices)
+
     # Extract data from current bin
-    bin_data = _extract_bin_data(
-        mocap_data=relative_matrices,
+    bin_euler_data = _extract_bin_data(
+        data=relative_matrices,
+        postural_data=postural_angles,
+        elevation_start=elevation_start,
+        elevation_end=elevation_end,
+        poe_start=poe_start,
+        poe_end=poe_end,
+    )
+    bin_trace_data = _extract_bin_data(
+        data=trace_angles,
         postural_data=postural_angles,
         elevation_start=elevation_start,
         elevation_end=elevation_end,
@@ -469,7 +509,7 @@ def _calculate_single_bin(
     )
 
     # return zero values if no data in the bin
-    if bin_data.shape[0] == 0:
+    if bin_euler_data.shape[0] == 0:
         return BinRotationResult(
             elevation=np.float64(0),
             poe=np.float64(0),
@@ -477,22 +517,24 @@ def _calculate_single_bin(
             cumulative_motion=np.float64(0),
             sample_count=0
         )
-    
-    # decompose data into euler angles
-    euler_angles = _decompose_rotation_matrices_yxy(bin_data)
 
-    # sum rotations
+    # decompose data into euler angles
+    euler_angles = _decompose_rotation_matrices_yxy(bin_euler_data)
+
+    # sum euler components to get cumulative motion for each axis
     elevation, poe, ir_er = (_accumulate_euler_components(euler_angles))
 
-    # get total motion and sample count
-    total_motion = elevation + poe + ir_er
-    n_samples = bin_data.shape[0]
+    # sum trace angles to get cumulative motion for the bin
+    total_trace_motion = np.sum(bin_trace_data)
+
+    # get the number of samples in the bin
+    n_samples = bin_euler_data.shape[0]
 
     return BinRotationResult(
         elevation=elevation,
         poe=poe,
         ir_er=ir_er,
-        cumulative_motion=total_motion,
+        cumulative_motion=np.float64(total_trace_motion),
         sample_count=n_samples,
     )
 
@@ -580,7 +622,7 @@ def calculate_bin_rotations(
     data_array = _validate_rotation_data(data, arm)
 
     # calculate relative motion
-    relative_matrices, postural_angles = _calculate_relative_motion(data_array, arm)
+    relative_matrices, postural_angles = _create_relative_matrices_and_postural_angles(data_array, arm)
 
     # Initialize heatmap object
     heatmap = Heatmap()
