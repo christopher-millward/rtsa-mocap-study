@@ -4,10 +4,9 @@ Author: Christopher Millward
 """
 from tqdm import tqdm
 from pathlib import Path
-from modules.bin_calcs import calculate_bin_rotations
+from modules.kinematics import calculate_bin_rotations
 from modules.data_loading import load_participant_details, load_motion_capture_data
 from modules.data_preprocessing import clean_and_validate_data
-from modules.cumulative_rotation import calculate_total_rotation
 from modules.data_saving import save_data_to_pickle
 from config import RAW_PARTICIPANT_DETAILS_PATH, RESULTS_PICKLE_PATH
 
@@ -39,23 +38,17 @@ def main():
         # clean and validate data
         clean_data = clean_and_validate_data(raw_data)
 
-        # cumulative rotation
-        # calculate
-        total_right = calculate_total_rotation(clean_data, 'right')
-        total_left = calculate_total_rotation(clean_data, 'left')
-        # save
-        participant_details[i].right.humerothoracic.trace_total = total_right
-        participant_details[i].left.humerothoracic.trace_total = total_left
+        # run kinematics
+        right_arm_kinematics = calculate_bin_rotations(clean_data, 'right')
+        left_arm_kinematics = calculate_bin_rotations(clean_data, 'left')
 
+        # save heatmap data
+        participant_details[i].right.humerothoracic.heatmap = right_arm_kinematics
+        participant_details[i].left.humerothoracic.heatmap = left_arm_kinematics
 
-        # rotation in each bin
-        # calculate
-        right_bin_calcs = calculate_bin_rotations(clean_data, 'right')
-        left_bin_calcs = calculate_bin_rotations(clean_data, 'left')
-        # save
-        participant_details[i].right.humerothoracic.heatmap = right_bin_calcs
-        participant_details[i].left.humerothoracic.heatmap = left_bin_calcs
-
+        # save trace total rotation value
+        participant_details[i].right.humerothoracic.trace_total = right_arm_kinematics.cumulative_motion.sum()
+        participant_details[i].left.humerothoracic.trace_total = left_arm_kinematics.cumulative_motion.sum()
 
     # Save data 
     save_data_to_pickle(participant_details, Path(RESULTS_PICKLE_PATH))
