@@ -472,7 +472,8 @@ def _accumulate_euler_components(
 
 
 def _calculate_single_bin(
-    relative_matrices: npt.NDArray[np.float64],
+    traces: npt.NDArray[np.float64],
+    euler_components: npt.NDArray[np.float64],
     postural_angles: PosturalAngles,
     elevation_start: int,
     elevation_end: int,
@@ -482,7 +483,8 @@ def _calculate_single_bin(
     """Calculate cumulative motion metrics for one heatmap bin.
 
     Args:
-        relative_matrices (npt.NDArray[np.float64]): Relative rotation matrices with shape (n_frames - 1, 3, 3).
+        traces (npt.NDArray[np.float64]): Trace angles with shape (n_frames - 1,).
+        euler_components (npt.NDArray[np.float64]): Euler components with shape (n_frames - 1, 3).
         postural_angles (PosturalAngles): Normalized postural angles for each frame.
         elevation_start (int): Lower elevation bound (inclusive).
         elevation_end (int): Upper elevation bound (exclusive).
@@ -493,15 +495,10 @@ def _calculate_single_bin(
     Returns:
         BinRotationResult: A data class containing the calculated metrics.
     """
-    # Calculate trace angles for each relative rotation matrix. This will be 
-    # used to compute cumulative motion. Must be done before filtering the 
-    # data to ensure that the trace angles correspond to the same relative 
-    # rotations.
-    trace_angles = _calculate_trace_rotation_angles(relative_matrices)
 
     # Extract data from current bin
     bin_euler_data = _extract_bin_data(
-        data=relative_matrices,
+        data=euler_components,
         postural_data=postural_angles,
         elevation_start=elevation_start,
         elevation_end=elevation_end,
@@ -509,7 +506,7 @@ def _calculate_single_bin(
         poe_end=poe_end,
     )
     bin_trace_data = _extract_bin_data(
-        data=trace_angles,
+        data=traces,
         postural_data=postural_angles,
         elevation_start=elevation_start,
         elevation_end=elevation_end,
@@ -527,11 +524,8 @@ def _calculate_single_bin(
             sample_count=0
         )
 
-    # decompose data into euler angles
-    euler_angles = _decompose_rotation_matrices_yxy(bin_euler_data)
-
     # sum euler components to get cumulative motion for each axis
-    elevation, poe, ir_er = (_accumulate_euler_components(euler_angles))
+    elevation, poe, ir_er = (_accumulate_euler_components(bin_euler_data))
 
     # sum trace angles to get cumulative motion for the bin
     total_trace_motion = np.sum(bin_trace_data)
@@ -598,14 +592,21 @@ def _populate_heatmap(
     heatmap.cumulative_motion = np.zeros((n_elevation_bins, n_poe_bins), dtype=np.float64)
     heatmap.sample_count = np.zeros((n_elevation_bins, n_poe_bins), dtype=np.int32)
 
+    # Calculate trace totals and Euler components for entire arm once instead of
+    # running these calculations over again for each bin.
+    all_trace_totals = _calculate_trace_rotation_angles(relative_matrices)
+    all_euler_components = _decompose_rotation_matrices_yxy(relative_matrices)
+
+    # Run the calcs for each bin
     for bin_bounds in _generate_heatmap_bins(
         heatmap.bin_width,
         heatmap.elevation_range_end,
         heatmap.poe_range_end
     ):
         result = _calculate_single_bin(
-            relative_matrices,
-            postural_angles,
+            traces=all_trace_totals,
+            euler_components=all_euler_components,
+            postural_angles=postural_angles,
             **bin_bounds.__dict__,
         )
 
