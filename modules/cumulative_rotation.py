@@ -74,7 +74,10 @@ def calculate_total_rotation(data: npt.NDArray[np.float64], arm: str) -> np.floa
         )
 
     matrices = create_rotation_matrices(data_array, arm)
-    angles = calculate_rotation_angles(matrices)
+    # Need to perform calcs on incremental rotations between frames, not absolute rotations
+    # this was previously inflating the numbers by like 4 magnitudes.
+    incremental_matrices = np.matmul(matrices[:-1], np.transpose(matrices[1:], axes=(0, 2, 1)))
+    angles = calculate_rotation_angles(incremental_matrices)
     
     return np.float64(angles.sum())
 
