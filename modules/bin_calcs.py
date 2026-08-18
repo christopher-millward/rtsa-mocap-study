@@ -342,7 +342,7 @@ def _extract_bin_data(
 def _calculate_trace_rotation_angles(
     rotation_matrices: npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
-    """Calculate the rotation angle for each relative rotation matrix using the trace formula.
+    """Calculate the absolute rotation angle for each relative rotation matrix using the trace formula.
 
     For each proper rotation matrix, the magnitude of the rotation is computed as:
         theta = arccos((trace(R) - 1) / 2)
@@ -353,6 +353,14 @@ def _calculate_trace_rotation_angles(
 
     Returns:
         npt.NDArray[np.float64]: Rotation magnitudes in radians, with shape (n_steps,).
+
+        Raises:
+            ValueError: If the input shape is invalid or empty.
+    
+    Notes:
+        - The result is always positive and in the range [0, π].
+        - Due to numerical precision, trace values outside [-1, 3] are
+          clamped to a valid range before computing arccos.
     """
     matrices = np.asarray(rotation_matrices, dtype=np.float64)
 
@@ -364,8 +372,9 @@ def _calculate_trace_rotation_angles(
 
     traces = np.trace(matrices, axis1=1, axis2=2)
     cos_angles = np.clip((traces - 1.0) / 2.0, -1.0, 1.0)
+    angles = np.arccos(cos_angles)
 
-    return np.asarray(np.arccos(cos_angles), dtype=np.float64)
+    return np.asarray(angles, dtype=np.float64)
 
 
 def _decompose_rotation_matrices_yxy(
