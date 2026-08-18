@@ -3,7 +3,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 from unittest.mock import MagicMock, patch
 
-from modules.bin_calcs import (
+from modules.kinematics import (
     PosturalAngles,
     BinBounds,
     BinRotationResult,
@@ -531,19 +531,19 @@ class TestCreateRelativeMatricesAndPosturalAngles:
     ):
         """Calls each dependency exactly once and returns their outputs."""
         create = mocker.patch(
-            "modules.bin_calcs.create_rotation_matrices",
+            "modules.kinematics.create_rotation_matrices",
             return_value=matrices,
         )
         get_angles = mocker.patch(
-            "modules.bin_calcs._get_postural_angles",
+            "modules.kinematics._get_postural_angles",
             return_value=postural_angles,
         )
         normalize = mocker.patch(
-            "modules.bin_calcs._normalize_postural_angles",
+            "modules.kinematics._normalize_postural_angles",
             return_value=normalized_postural_angles,
         )
         compute = mocker.patch(
-            "modules.bin_calcs._compute_incremental_rotation_matrices",
+            "modules.kinematics._compute_incremental_rotation_matrices",
             return_value=relative_matrices,
         )
 
@@ -573,19 +573,19 @@ class TestCreateRelativeMatricesAndPosturalAngles:
         original = data.copy()
 
         mocker.patch(
-            "modules.bin_calcs.create_rotation_matrices",
+            "modules.kinematics.create_rotation_matrices",
             return_value=matrices,
         )
         mocker.patch(
-            "modules.bin_calcs._get_postural_angles",
+            "modules.kinematics._get_postural_angles",
             return_value=postural_angles,
         )
         mocker.patch(
-            "modules.bin_calcs._normalize_postural_angles",
+            "modules.kinematics._normalize_postural_angles",
             return_value=normalized_postural_angles,
         )
         mocker.patch(
-            "modules.bin_calcs._compute_incremental_rotation_matrices",
+            "modules.kinematics._compute_incremental_rotation_matrices",
             return_value=relative_matrices,
         )
 
@@ -1108,19 +1108,19 @@ class TestCalculateSingleBin:
         trace_bin_data = np.array([2.0, 3.5, 4.5], dtype=np.float64)
 
         mock_extract_bin_data = mocker.patch(
-            "modules.bin_calcs._extract_bin_data",
+            "modules.kinematics._extract_bin_data",
             side_effect=[bin_data, trace_bin_data],
         )
         mock_trace_angles = mocker.patch(
-            "modules.bin_calcs._calculate_trace_rotation_angles",
+            "modules.kinematics._calculate_trace_rotation_angles",
             return_value=np.array([2.0, 3.5, 4.5], dtype=np.float64),
         )
         mock_decompose_euler = mocker.patch(
-            "modules.bin_calcs._decompose_rotation_matrices_yxy",
+            "modules.kinematics._decompose_rotation_matrices_yxy",
             return_value=euler_angles,
         )
         mock_accumulate_euler = mocker.patch(
-            "modules.bin_calcs._accumulate_euler_components",
+            "modules.kinematics._accumulate_euler_components",
             return_value=(
                 np.float64(10.0),
                 np.float64(20.0),
@@ -1159,14 +1159,14 @@ class TestCalculateSingleBin:
         empty_bin = np.empty((0, 3, 3))
 
         mock_extract_bin_data = mocker.patch(
-            "modules.bin_calcs._extract_bin_data",
+            "modules.kinematics._extract_bin_data",
             return_value=empty_bin,
         )
         mock_decompose_euler = mocker.patch(
-            "modules.bin_calcs._decompose_rotation_matrices_yxy",
+            "modules.kinematics._decompose_rotation_matrices_yxy",
         )
         mock_accumulate_euler = mocker.patch(
-            "modules.bin_calcs._accumulate_euler_components",
+            "modules.kinematics._accumulate_euler_components",
         )
 
         result = _calculate_single_bin(
@@ -1366,15 +1366,15 @@ class TestPopulateHeatmap:
         result = MagicMock(spec=BinRotationResult)
 
         generate_bins = mocker.patch(
-            "modules.bin_calcs._generate_heatmap_bins",
+            "modules.kinematics._generate_heatmap_bins",
             return_value=iter(bin_bounds),
         )
         calculate_bin = mocker.patch(
-            "modules.bin_calcs._calculate_single_bin",
+            "modules.kinematics._calculate_single_bin",
             return_value=result,
         )
         add_result = mocker.patch(
-            "modules.bin_calcs._add_bin_result_to_heatmap",
+            "modules.kinematics._add_bin_result_to_heatmap",
         )
 
         _ = _populate_heatmap(
@@ -1415,7 +1415,7 @@ class TestPopulateHeatmap:
         postural_angles,
     ):
         mocker.patch(
-            "modules.bin_calcs._generate_heatmap_bins",
+            "modules.kinematics._generate_heatmap_bins",
             return_value=iter([]),
         )
 
@@ -1517,22 +1517,22 @@ class TestCalculateBinRotations:
         """Calls each processing step once and returns a Heatmap."""
 
         mock_validate_matrices = mocker.patch(
-            "modules.bin_calcs._validate_rotation_data",
+            "modules.kinematics._validate_rotation_data",
             return_value=validated_data,
         )
         mock_create_relative_matrices_and_postures = mocker.patch(
-            "modules.bin_calcs._create_relative_matrices_and_postural_angles",
+            "modules.kinematics._create_relative_matrices_and_postural_angles",
             return_value=(
                 relative_matrices,
                 postural_angles,
             ),
         )
         mock_heatmap_constructor = mocker.patch(
-            "modules.bin_calcs.Heatmap",
+            "modules.kinematics.Heatmap",
             return_value=heatmap,
         )
         mock_populate_heatmap = mocker.patch(
-            "modules.bin_calcs._populate_heatmap",
+            "modules.kinematics._populate_heatmap",
             return_value=heatmap,
         )
 

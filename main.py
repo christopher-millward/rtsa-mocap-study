@@ -4,7 +4,7 @@ Author: Christopher Millward
 """
 from tqdm import tqdm
 from pathlib import Path
-from modules.bin_calcs import calculate_bin_rotations
+from modules.kinematics import calculate_bin_rotations
 from modules.data_loading import load_participant_details, load_motion_capture_data
 from modules.data_preprocessing import clean_and_validate_data
 from modules.cumulative_rotation import calculate_total_rotation
