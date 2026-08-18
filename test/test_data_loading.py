@@ -5,7 +5,7 @@ from config import RAW_DATA_DIR
 import pandas as pd
 import pytest
 import numpy as np
-from schema import ArmRotationDetails
+from schema import ArmRotationDetails, ParticipantDetails
 from modules.data_loading import (
     load_motion_capture_data,
     load_participant_details
@@ -28,6 +28,7 @@ def _load_from_rows(rows):
 
     mock_read_excel.assert_called_once_with(Path("fake-path.xlsx"))
     return participants
+
 
 # ----------------------------
 # Tests
@@ -307,6 +308,150 @@ class TestLoadParticipantDetails:
 
     def test_should_return_empty_list_for_empty_input(self):
         assert _load_from_rows([]) == []
+
+    @pytest.mark.parametrize(
+        ("rtsa_side", "operated_attrs", "non_operated_attrs"),
+        [
+            ("left", ["left"], ["right"]),
+            ("right", ["right"], ["left"]),
+            ("both", ["left", "right"], []),
+            (None, [], []),
+        ],
+    )
+    def test_operated_and_non_operated_properties_initialize(
+        self,
+        rtsa_side,
+        operated_attrs,
+        non_operated_attrs,
+    ):
+        """Test that operated and non_operated return the correct arms."""
+        left = ArmRotationDetails()
+        left.humerothoracic.trace_total = np.float64(111.0)
+
+        right = ArmRotationDetails()
+        right.humerothoracic.trace_total = np.float64(222.0)
+
+        participant_details = ParticipantDetails(
+            filename=Path("foo"),
+            age=42,
+            left=left,
+            right=right,
+            rtsa_side=rtsa_side,
+            tsa_side=None,
+            dominant_arm=None
+        )
+
+        expected_operated = [
+            getattr(participant_details, attr)
+            for attr in operated_attrs
+        ]
+        expected_non_operated = [
+            getattr(participant_details, attr)
+            for attr in non_operated_attrs
+        ]
+        assert participant_details.operated == expected_operated
+        assert participant_details.non_operated == expected_non_operated
+
+        if rtsa_side == "left":
+            assert participant_details.operated[0].humerothoracic.trace_total == 111.0
+            assert participant_details.non_operated[0].humerothoracic.trace_total == 222.0
+        elif rtsa_side == "right":
+            assert participant_details.operated[0].humerothoracic.trace_total == 222.0
+            assert participant_details.non_operated[0].humerothoracic.trace_total == 111.0
+        elif rtsa_side == "both":
+            assert participant_details.operated[0].humerothoracic.trace_total == 111.0
+            assert participant_details.operated[1].humerothoracic.trace_total == 222.0
+            assert participant_details.non_operated == []
+        elif rtsa_side == None:
+            assert participant_details.operated == []
+            assert participant_details.non_operated == []
+
+    @pytest.mark.parametrize("rtsa_side", ["left", "right"])
+    def test_operated_and_non_operated_update_when_arm_changes(
+        self,
+        rtsa_side,
+    ):
+        """Test that operated/non_operated dynamically reference updated arms."""
+        left = ArmRotationDetails()
+        left.humerothoracic.trace_total = np.float64(111.0)
+
+        right = ArmRotationDetails()
+        right.humerothoracic.trace_total = np.float64(222.0)
+
+        participant_details = ParticipantDetails(
+            filename=Path("foo"),
+            age=42,
+            left=left,
+            right=right,
+            rtsa_side=rtsa_side,
+            tsa_side=None,
+            dominant_arm=None
+        )
+
+        new_left = ArmRotationDetails()
+        new_right = ArmRotationDetails()
+
+        participant_details.left = new_left
+        participant_details.right = new_right
+
+        if rtsa_side == "left":
+            assert participant_details.operated == [new_left]
+            assert participant_details.non_operated == [new_right]
+        else:
+            assert participant_details.operated == [new_right]
+            assert participant_details.non_operated == [new_left]
+
+        assert participant_details.left.humerothoracic.trace_total == None
+        assert participant_details.right.humerothoracic.trace_total == None
+
+    @pytest.mark.parametrize(
+        ("rtsa_side", "expected_operated"),
+        [
+            ("left", "left"),
+            ("right", "right"),
+            ("both", "both"),
+            (None, None),
+        ],
+    )
+    def test_operated_updates_when_rtsa_side_changes(
+        self,
+        rtsa_side,
+        expected_operated,
+    ):
+        """Test that operated updates when rtsa_side changes."""
+        left = ArmRotationDetails()
+        left.humerothoracic.trace_total = np.float64(111.0)
+
+        right = ArmRotationDetails()
+        right.humerothoracic.trace_total = np.float64(222.0)
+
+        participant_details = ParticipantDetails(
+            filename=Path("foo"),
+            age=42,
+            left=left,
+            right=right,
+            rtsa_side="left",
+            tsa_side=None,
+            dominant_arm=None
+        )
+
+        participant_details.rtsa_side = rtsa_side
+
+        if expected_operated == "left":
+            assert participant_details.operated == [participant_details.left]
+            assert participant_details.operated[0].humerothoracic.trace_total == 111.0
+        elif expected_operated == "right":
+            assert participant_details.operated == [participant_details.right]
+            assert participant_details.operated[0].humerothoracic.trace_total == 222.0
+        elif expected_operated == "both":
+            assert participant_details.operated == [
+                participant_details.left,
+                participant_details.right,
+            ]
+            assert participant_details.operated[0].humerothoracic.trace_total == 111.0
+            assert participant_details.operated[1].humerothoracic.trace_total == 222.0
+        else:
+            assert participant_details.operated == []
 
 
 class TestLoadMotionCaptureData:
