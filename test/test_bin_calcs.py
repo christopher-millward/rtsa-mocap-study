@@ -1431,11 +1431,22 @@ class TestPopulateHeatmap:
 
 class TestCalculateTraceRotationAngles:
 
-    def test_rejects_invalid_matrices_shape(self):
-        pass    
-
-    def test_rejects_empty_matrices(self):
-        pass
+    @pytest.mark.parametrize(
+        "invalid_matrices",
+        [
+            pytest.param(np.zeros((2, 2, 2), dtype=np.float64),
+                            id="2x2-matrices"),
+            pytest.param(np.zeros((3, 3, 4), dtype=np.float64),
+                            id="wrong-last-dim"),
+            pytest.param(np.zeros((4, 9), dtype=np.float64),
+                            id="flattened-rows"),
+            pytest.param(np.zeros((0, 3, 3), dtype=np.float64),
+                            id="empty-matrices"),
+        ],
+    )
+    def test_rejects_invalid_matrices_shape(self, invalid_matrices):
+        with pytest.raises(ValueError):
+            _calculate_trace_rotation_angles(invalid_matrices)
 
     def test_trace_angles_match_rotation_magnitude_formula(self):
         relative_matrices = np.array(
@@ -1455,6 +1466,18 @@ class TestCalculateTraceRotationAngles:
         )
         np.testing.assert_allclose(result, expected, atol=1e-8)
 
+    def test_trace_angles_are_non_negative(self):
+        relative_matrices = np.array(
+            [
+                R.from_euler("y", -15, degrees=True).as_matrix(),
+                R.from_euler("x", -20, degrees=True).as_matrix(),
+            ],
+            dtype=np.float64,
+        )
+
+        result = _calculate_trace_rotation_angles(relative_matrices)
+
+        assert np.all(result >= 0.0)
 
 class TestCalculateBinRotations:
     @pytest.fixture
