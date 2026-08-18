@@ -1074,21 +1074,9 @@ class TestAccumulateEulerComponents:
 
 class TestCalculateSingleBin:
     @pytest.fixture
-    def relative_matrices(self) -> np.ndarray:
-        """Mock relative rotation matrices."""
-        rng = np.random.default_rng(42)
-        return rng.random((10, 3, 3))
-
-    @pytest.fixture
     def postural_angles(self) -> MagicMock:
         """Mock PosturalAngles."""
         return MagicMock(spec=PosturalAngles)
-
-    @pytest.fixture
-    def bin_data(self) -> np.ndarray:
-        """Mock data extracted for a single heatmap bin."""
-        data = [10,20,30]
-        return np.array(data)
 
     @pytest.fixture
     def euler_angles(self) -> np.ndarray:
@@ -1099,25 +1087,22 @@ class TestCalculateSingleBin:
     def test_calls_dependencies_once_and_returns_expected_result(
         self,
         mocker,
-        relative_matrices,
         postural_angles,
-        bin_data,
         euler_angles,
     ):
-        expected_trace_total = np.float64(2.0 + 3.5 + 4.5)
-        trace_bin_data = np.array([2.0, 3.5, 4.5], dtype=np.float64)
+        trace_values = np.array([2.0, 3.5, 4.5], dtype=np.float64)
+        euler_bin = np.array(
+            [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [7.0, 8.0, 9.0],
+            ],
+            dtype=np.float64,
+        )
 
         mock_extract_bin_data = mocker.patch(
             "modules.kinematics._extract_bin_data",
-            side_effect=[bin_data, trace_bin_data],
-        )
-        mock_trace_angles = mocker.patch(
-            "modules.kinematics._calculate_trace_rotation_angles",
-            return_value=np.array([2.0, 3.5, 4.5], dtype=np.float64),
-        )
-        mock_decompose_euler = mocker.patch(
-            "modules.kinematics._decompose_rotation_matrices_yxy",
-            return_value=euler_angles,
+            side_effect=[euler_bin, trace_values],
         )
         mock_accumulate_euler = mocker.patch(
             "modules.kinematics._accumulate_euler_components",
@@ -1128,8 +1113,17 @@ class TestCalculateSingleBin:
             ),
         )
 
+        expected_result = BinRotationResult(
+            elevation=np.float64(10.0),
+            poe=np.float64(20.0),
+            ir_er=np.float64(30.0),
+            cumulative_motion=np.float64(np.sum(trace_values)),
+            sample_count=euler_bin.shape[0] 
+        )
+
         result = _calculate_single_bin(
-            relative_matrices=relative_matrices,
+            traces=trace_values,
+            euler_components=euler_angles,
             postural_angles=postural_angles,
             elevation_start=0,
             elevation_end=20,
@@ -1138,39 +1132,56 @@ class TestCalculateSingleBin:
         )
 
         assert mock_extract_bin_data.call_count == 2
-        mock_trace_angles.assert_called_once_with(relative_matrices)
-        mock_decompose_euler.assert_called_once_with(bin_data)
-        mock_accumulate_euler.assert_called_once_with(euler_angles)
+
+        first_call = mock_extract_bin_data.call_args_list[0].kwargs
+        second_call = mock_extract_bin_data.call_args_list[1].kwargs
+
+        np.testing.assert_array_equal(first_call["data"], euler_angles)
+        np.testing.assert_array_equal(second_call["data"], trace_values)
+
+        assert first_call["postural_data"] is postural_angles
+        assert second_call["postural_data"] is postural_angles
+        assert first_call["elevation_start"] == 0
+        assert second_call["elevation_start"] == 0
+        assert first_call["elevation_end"] == 20
+        assert second_call["elevation_end"] == 20
+        assert first_call["poe_start"] == 40
+        assert second_call["poe_start"] == 40
+        assert first_call["poe_end"] == 60
+        assert second_call["poe_end"] == 60
+
+        mock_accumulate_euler.assert_called_once_with(euler_bin)
 
         assert isinstance(result, BinRotationResult)
-        assert result.elevation == np.float64(10.0)
-        assert result.poe == np.float64(20.0)
-        assert result.ir_er == np.float64(30.0)
-        assert result.cumulative_motion == expected_trace_total
-        assert result.sample_count == len(trace_bin_data)
+        assert result == expected_result
 
     def test_returns_zero_result_when_bin_is_empty(
         self,
         mocker,
-        relative_matrices,
         postural_angles,
     ):
         """Returns zeros and skips further processing when no data is found."""
-        empty_bin = np.empty((0, 3, 3))
+        empty_euler_bin = np.empty((0, 3), dtype=np.float64)
+        empty_trace_bin = np.empty((0,), dtype=np.float64)
 
         mock_extract_bin_data = mocker.patch(
             "modules.kinematics._extract_bin_data",
-            return_value=empty_bin,
-        )
-        mock_decompose_euler = mocker.patch(
-            "modules.kinematics._decompose_rotation_matrices_yxy",
+            side_effect=[empty_euler_bin, empty_trace_bin],
         )
         mock_accumulate_euler = mocker.patch(
             "modules.kinematics._accumulate_euler_components",
         )
 
+        expected_result = BinRotationResult(
+            elevation=np.float64(0),
+            poe=np.float64(0),
+            ir_er=np.float64(0),
+            cumulative_motion=np.float64(0),
+            sample_count=0,
+        )
         result = _calculate_single_bin(
-            relative_matrices=relative_matrices,
+            traces=np.empty((0,), dtype=np.float64),
+            euler_components=np.empty((0, 3), dtype=np.float64),
             postural_angles=postural_angles,
             elevation_start=0,
             elevation_end=20,
@@ -1179,15 +1190,10 @@ class TestCalculateSingleBin:
         )
 
         assert mock_extract_bin_data.call_count == 2
-        mock_decompose_euler.assert_not_called()
         mock_accumulate_euler.assert_not_called()
 
         assert isinstance(result, BinRotationResult)
-        assert result.elevation == np.float64(0)
-        assert result.poe == np.float64(0)
-        assert result.ir_er == np.float64(0)
-        assert result.cumulative_motion == np.float64(0)
-        assert result.sample_count == 0
+        assert result == expected_result
 
 
 class TestAddBinResultToHeatmap:
@@ -1364,10 +1370,27 @@ class TestPopulateHeatmap:
         """Calls bin calculation and addition once per bin."""
 
         result = MagicMock(spec=BinRotationResult)
+        trace_totals = np.array([0.25, 0.5, 0.75], dtype=np.float64)
+        euler_components = np.array(
+            [
+                [0.1, 0.2, 0.3],
+                [0.4, 0.5, 0.6],
+                [0.7, 0.8, 0.9],
+            ],
+            dtype=np.float64,
+        )
 
         generate_bins = mocker.patch(
             "modules.kinematics._generate_heatmap_bins",
             return_value=iter(bin_bounds),
+        )
+        calculate_trace = mocker.patch(
+            "modules.kinematics._calculate_trace_rotation_angles",
+            return_value=trace_totals,
+        )
+        decompose_euler = mocker.patch(
+            "modules.kinematics._decompose_rotation_matrices_yxy",
+            return_value=euler_components,
         )
         calculate_bin = mocker.patch(
             "modules.kinematics._calculate_single_bin",
@@ -1383,6 +1406,8 @@ class TestPopulateHeatmap:
             heatmap,
         )
 
+        calculate_trace.assert_called_once_with(relative_matrices)
+        decompose_euler.assert_called_once_with(relative_matrices)
         generate_bins.assert_called_once_with(
             heatmap.bin_width,
             heatmap.elevation_range_end,
@@ -1394,8 +1419,9 @@ class TestPopulateHeatmap:
 
         for bounds in bin_bounds:
             calculate_bin.assert_any_call(
-                relative_matrices,
-                postural_angles,
+                traces=trace_totals,
+                euler_components=euler_components,
+                postural_angles=postural_angles,
                 **bounds.__dict__,
             )
 
@@ -1417,6 +1443,14 @@ class TestPopulateHeatmap:
         mocker.patch(
             "modules.kinematics._generate_heatmap_bins",
             return_value=iter([]),
+        )
+        mocker.patch(
+            "modules.kinematics._calculate_trace_rotation_angles",
+            return_value=np.array([], dtype=np.float64),
+        )
+        mocker.patch(
+            "modules.kinematics._decompose_rotation_matrices_yxy",
+            return_value=np.empty((0, 3), dtype=np.float64),
         )
 
         result = _populate_heatmap(
