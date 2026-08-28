@@ -14,6 +14,7 @@ import numpy as np
 from typing import Literal
 
 from config import CUMULATIVE_MOTION_RAINCLOUD_PATH, OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH
+from modules.statistics import get_only_one_sided_participants, create_cumulative_totals_dataframe
 from schema import ParticipantDetails
 
 
@@ -32,57 +33,6 @@ dpi = 600  # dots per inch for the plots
 # -------------------------------------------------------------------
 # Helper Functions
 # -------------------------------------------------------------------
-def _get_only_one_sided_participants(
-    data: list[ParticipantDetails]
-) -> list[ParticipantDetails]:
-    """Return a list of ParticipantDetails objects with exactly one arm with RTSA and the other arm with no RTSA or TSA.
-
-    Args:
-        data (list[ParticipantDetails]): List of ParticipantDetails objects.
-
-    Returns:
-        list[ParticipantDetails]: List of ParticipantDetails objects.
-    """
-    single_arm_participants = [
-        participant for participant in data if (
-            participant.rtsa_side is not None
-            and participant.rtsa_side != 'both'
-            and participant.tsa_side is None
-        )
-    ]
-
-    return single_arm_participants
-
-
-def _create_cumulative_totals_dataframe(
-    data: list[ParticipantDetails]
-) -> pd.DataFrame:
-    """Create a DataFrame of cumulative totals for each participant.
-
-    Returns a DataFrame with the following columns:
-        - participant: The participant's filename identifier.
-        - Operated: The cumulative total rotation for the operated arm.
-        - Non-operated: The cumulative total rotation for the non-operated arm.
-
-    Args:
-        data (list[ParticipantDetails]): List of ParticipantDetails objects.
-    Returns:
-        pd.DataFrame: DataFrame of cumulative totals for each participant.
-    """
-
-    rows = []
-    for idx, participant in enumerate(data):
-        vals = {
-            'participant': participant.filename,
-            'Operated': participant.operated[0].humerothoracic.trace_total,
-            'Non-operated': participant.non_operated[0].humerothoracic.trace_total
-        }
-        rows.append(vals)
-
-    cumulative_totals = pd.DataFrame(rows)
-    return cumulative_totals
-
-
 def _stack_heatmaps(
     data: list[ParticipantDetails],
     side: Literal["operated", "non_operated"],
@@ -132,8 +82,8 @@ def plot_raincloud(
         fig_size (tuple): Size of the figure.
     """
     # Prep data
-    one_sided_participants = _get_only_one_sided_participants(data)
-    cumulative_totals = _create_cumulative_totals_dataframe(
+    one_sided_participants = get_only_one_sided_participants(data)
+    cumulative_totals = create_cumulative_totals_dataframe(
         one_sided_participants)
     df_long = pd.melt(
         cumulative_totals,
