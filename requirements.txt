@@ -9,3 +9,4 @@ openpyxl==3.1.5
 tabulate==0.10.0
 ipympl==0.10.0
 tqdm==4.68.3
+ptitprince==0.3.1
