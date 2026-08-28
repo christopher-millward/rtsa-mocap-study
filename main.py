@@ -9,6 +9,7 @@ from modules.data_loading import load_participant_details, load_motion_capture_d
 from modules.data_preprocessing import clean_and_validate_data
 from modules.data_saving import save_data_to_pickle
 from config import RAW_PARTICIPANT_DETAILS_PATH, RESULTS_PICKLE_PATH
+from modules.plots import create_and_save_all_figures
 
 
 def main():
@@ -52,7 +53,9 @@ def main():
 
     # Save data 
     save_data_to_pickle(participant_details, Path(RESULTS_PICKLE_PATH))
-    # save_heatmap_to_csv(participant_details, Path(RESULTS_HEATMAP_CSV_PATH))
+
+    # Create and save figures
+    create_and_save_all_figures(participant_details)
 
 if __name__ == "__main__":
     main()
