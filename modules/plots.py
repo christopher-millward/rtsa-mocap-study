@@ -308,7 +308,7 @@ def plot_heatmap(
     plt.savefig(out_path, dpi=dpi, bbox_inches="tight", transparent=True)
 
 
-def plot_all_figs(
+def create_and_save_all_figures(
     data: list[ParticipantDetails],
     fig_size=fig_size,
     palette=palette,
