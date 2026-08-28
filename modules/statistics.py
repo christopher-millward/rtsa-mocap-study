@@ -96,7 +96,7 @@ def create_summary_table(cumulative_totals: pd.DataFrame) -> pd.DataFrame:
     return summary_table
 
 
-def create_and_save_tables(
+def run_statistics(
     data: list[ParticipantDetails],
     out_path: Path = CUMULATIVE_MOTION_STATISTICS_PATH
 ):
