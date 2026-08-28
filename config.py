@@ -10,6 +10,9 @@ RAW_PARTICIPANT_DETAILS_PATH = RAW_DATA_DIR / "participant_details.xlsx"
 RESULTS_PICKLE_PATH = OUTPUTS_DIR / "all_results.pkl"
 RESULTS_HEATMAP_CSV_PATH = OUTPUTS_DIR / "heatmap_results_data.csv"
 
+CUMULATIVE_MOTION_RAINCLOUD_PATH = OUTPUTS_DIR / "cumulative_motion_raincloud.png"
+OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH = OUTPUTS_DIR / "operated_cumulative_motion_heatmap.png"
+
 # Analysis and Testing Parameters
 ORTHONORMAL_TOLERANCE = 5e-4
 DETERMINANT_TOLERANCE = 5e-4
