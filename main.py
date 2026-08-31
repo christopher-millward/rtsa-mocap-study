@@ -3,6 +3,8 @@ Main module to run the full analysis pipeline for the study.
 Author: Christopher Millward
 """
 from pathlib import Path
+from typing_extensions import Literal, cast
+from modules.general_utilities import create_rotation_matrices
 from modules.kinematics import calculate_bin_rotations
 from modules.data_loading import load_participant_details, load_motion_capture_data
 from modules.data_preprocessing import clean_and_validate_data
@@ -31,20 +33,23 @@ def main():
         # load the data
         raw_data = load_motion_capture_data(participant.filename)
 
-        # clean and validate data
-        clean_data = clean_and_validate_data(raw_data)
+        for side in ['left', 'right']:
+            # appease the type checker
+            side = cast(Literal["left", "right"], side)
 
-        # run kinematics
-        right_arm_kinematics = calculate_bin_rotations(clean_data, 'right', i)
-        left_arm_kinematics = calculate_bin_rotations(clean_data, 'left', i)
+            # create R matrices
+            data = create_rotation_matrices(raw_data, side)
 
-        # save heatmap data
-        participant_details[i].right.humerothoracic.heatmap = right_arm_kinematics
-        participant_details[i].left.humerothoracic.heatmap = left_arm_kinematics
+            # clean and validate data
+            cleaned_data = clean_and_validate_data(data)
 
-        # save trace total rotation value
-        participant_details[i].right.humerothoracic.trace_total = right_arm_kinematics.cumulative_motion.sum()
-        participant_details[i].left.humerothoracic.trace_total = left_arm_kinematics.cumulative_motion.sum()
+            # run kinematics
+            kinematics = calculate_bin_rotations(cleaned_data, side, i)
+
+            # save kinematics data
+            arm = getattr(participant_details[i], side)
+            arm.humerothoracic.heatmap = kinematics
+            arm.humerothoracic.trace_total = kinematics.cumulative_motion.sum()
 
         # update progress bar
         get_pbar_manager().update_outer()
