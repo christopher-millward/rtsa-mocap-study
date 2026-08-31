@@ -140,6 +140,56 @@ def align_axes_with_ISB(
 
     return data
 
+
+def get_correction_matrix(
+    m: np.ndarray,
+    target: np.ndarray = np.array([[1, 0, 0],[0, 1, 0],[0, 0, 1]])
+):
+    """
+    Return a rotation matrix that rotates a matrix to align with the specified target matrix (default is the origin axes).
+
+    Args:
+        m (np.ndarray): A 3D matrix to be rotated.
+        target (np.ndarray): The target matrix to align with (default is the origin axes).
+
+    Returns:
+        np.ndarray: A 3x3 rotation matrix that rotates m to align with the target matrix.
+    """
+
+    # ensure normalized matrix
+    m = m / np.linalg.norm(m)
+    target = target / np.linalg.norm(target)
+
+    rot, _ = Rotation.align_vectors(m, target) #type: ignore
+    return rot.as_matrix()
+
+
+def apply_axis_orientation_correction(
+    data: np.ndarray, 
+    n_frames: int = 20
+) -> np.ndarray:
+    """
+    Apply axis orientation correction to the given data.
+
+    This function applies a correction matrix to the input data to align it with the specified target orientation.
+
+    Args:
+        data (np.ndarray): A 3D array of shape (n_frames, 3, 3) representing the rotation matrices for each frame.
+        n_frames (int): The number of frames to use for calculating the average humerus direction.
+
+    Returns:
+        np.ndarray: The corrected data in the form of a 3D array of shape (n_frames, 3, 3) after applying the correction matrix.
+    """
+    # get the avg humerus direction for the first n_frames
+    avg_hum_direction = data[:n_frames, :, :].mean(axis=0)
+
+    # create correction matrix
+    R_correction = get_correction_matrix(avg_hum_direction)
+
+    # Apply correction to every frame
+    return R_correction @ data  # NOTE: This order matters!! Don't rearrange!!
+
+
 def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
     """Validate that a batch of 3x3 matrices are proper rotation matrices.
 
@@ -189,6 +239,7 @@ def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
             f"Largest determinant error: {max_det_error:.3e}"
         )
 
+
 def clean_and_validate_data(raw_data: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """
     Clean a batch of arm rotation matrices for analysis. Tasks:
@@ -209,13 +260,17 @@ def clean_and_validate_data(raw_data: npt.NDArray[np.float64]) -> npt.NDArray[np
         ValueError: If the input is not a batch of 3x3 matrices, if any matrix
             is not orthonormal, or if any determinant differs from ``+1``.
     """
+    # Create rotation matrices from raw data
+    data_right = create_rotation_matrices(raw_data, "right")
+    data_left = create_rotation_matrices(raw_data, "left")
 
     # align axes with ISB CS
-    cleaned_matrices = align_axes_with_ISB(raw_data)
+    clean_right = apply_axis_orientation_correction(data_right)
+    clean_left = apply_axis_orientation_correction(data_left)
 
     # validate orthonormality and determinant
-    validate_orthonorm_and_det(create_rotation_matrices(cleaned_matrices, "right"))
-    validate_orthonorm_and_det(create_rotation_matrices(cleaned_matrices, "left"))
+    validate_orthonorm_and_det(clean_right)
+    validate_orthonorm_and_det(clean_left)
 
     # return cleaned data
     return cleaned_matrices
