@@ -106,4 +106,4 @@ def run_statistics(
     # Save the tables to an Excel file
     with pd.ExcelWriter(out_path) as writer:
         cumulative_totals.to_excel(writer, sheet_name="cumulative_rotation_by_arm", index=False)
-        summary_table.to_excel(writer, sheet_name="summary_table_for_cumulative_rotation", index=False)
+        summary_table.to_excel(writer, sheet_name="cumulative_rotation_summary", index=False)
