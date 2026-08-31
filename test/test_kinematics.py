@@ -1399,11 +1399,15 @@ class TestPopulateHeatmap:
         add_result = mocker.patch(
             "modules.kinematics._add_bin_result_to_heatmap",
         )
+        progress_manager = mocker.patch(
+            "modules.kinematics.get_pbar_manager",
+        )
 
         _ = _populate_heatmap(
             relative_matrices,
             postural_angles,
             heatmap,
+            participant_idx=1
         )
 
         calculate_trace.assert_called_once_with(relative_matrices)
@@ -1411,7 +1415,7 @@ class TestPopulateHeatmap:
         generate_bins.assert_called_once_with(
             heatmap.bin_width,
             heatmap.elevation_range_end,
-            heatmap.poe_range_end,
+            heatmap.poe_range_end
         )
 
         assert calculate_bin.call_count == len(bin_bounds)
@@ -1452,11 +1456,16 @@ class TestPopulateHeatmap:
             "modules.kinematics._decompose_rotation_matrices_yxy",
             return_value=np.empty((0, 3), dtype=np.float64),
         )
+        mocker.patch(
+            "modules.progress_bar.ProgressManager.update_inner",
+            return_value=None   
+        )
 
         result = _populate_heatmap(
             relative_matrices,
             postural_angles,
             heatmap,
+            participant_idx=1
         )
 
         assert isinstance(result, Heatmap)
@@ -1569,11 +1578,15 @@ class TestCalculateBinRotations:
             "modules.kinematics._populate_heatmap",
             return_value=heatmap,
         )
+        mock_progress_manager = mocker.patch(
+            "modules.kinematics.get_pbar_manager",
+        )
 
         side="left"
         result = calculate_bin_rotations(
             data,
-            side
+            side,
+            participant_idx=1
         )
 
         mock_validate_matrices.assert_called_once_with(
@@ -1592,6 +1605,7 @@ class TestCalculateBinRotations:
             relative_matrices,
             postural_angles,
             heatmap,
+            1
         )
 
         assert isinstance(result, Heatmap)
