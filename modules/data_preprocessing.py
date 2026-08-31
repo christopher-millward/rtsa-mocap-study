@@ -32,7 +32,8 @@ def get_correction_matrix(
 
 def apply_axis_orientation_correction(
     data: np.ndarray, 
-    n_frames: int = 20
+    n_frames: int = 20,
+    target: np.ndarray = np.array([[1, 0, 0],[0, 1, 0],[0, 0, 1]])
 ) -> np.ndarray:
     """
     Apply axis orientation correction to the given data.
@@ -42,6 +43,7 @@ def apply_axis_orientation_correction(
     Args:
         data (np.ndarray): A 3D array of shape (n_frames, 3, 3) representing the rotation matrices for each frame.
         n_frames (int): The number of frames to use for calculating the average humerus direction.
+        target (np.ndarray): The target orientation to align the data with.
 
     Returns:
         np.ndarray: The corrected data in the form of a 3D array of shape (n_frames, 3, 3) after applying the correction matrix.
@@ -50,7 +52,7 @@ def apply_axis_orientation_correction(
     avg_hum_direction = data[:n_frames, :, :].mean(axis=0)
 
     # create correction matrix
-    R_correction = get_correction_matrix(avg_hum_direction)
+    R_correction = get_correction_matrix(avg_hum_direction, target)
 
     # Apply correction to every frame
     return R_correction @ data  # NOTE: This order matters!! Don't rearrange!!
