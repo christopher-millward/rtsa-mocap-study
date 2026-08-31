@@ -7,11 +7,12 @@ Author: Christopher Millward
 from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
-from typing import Literal, Tuple, Iterator, TypedDict
+from typing import Literal, Tuple, Iterator
 from scipy.spatial.transform import Rotation as R
 from schema import Heatmap
 from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
+from modules.progress_bar import get_pbar_manager
 
 # ----------------------------
 # Local-only classes
@@ -571,6 +572,7 @@ def _populate_heatmap(
     relative_matrices: npt.NDArray[np.float64],
     postural_angles: PosturalAngles,
     heatmap: Heatmap,
+    participant_idx: int,
 ) -> Heatmap:
     """Populate heatmap with rotational motion data.
 
@@ -620,13 +622,17 @@ def _populate_heatmap(
             poe_index,
         )
 
+        # update procress bar
+        get_pbar_manager().update_inner(participant_idx)
+
     return heatmap
 
 
 def calculate_bin_rotations(
     data: npt.NDArray[np.float64],
-    arm: Literal['left', 'right']
-):
+    arm: Literal['left', 'right'],
+    participant_idx: int,
+) -> Heatmap:   
 
     # validate incoming data
     data_array = _validate_rotation_data(data, arm)
@@ -638,4 +644,4 @@ def calculate_bin_rotations(
     heatmap = Heatmap()
 
     # return populated heatmap
-    return _populate_heatmap(relative_matrices, postural_angles, heatmap)
+    return _populate_heatmap(relative_matrices, postural_angles, heatmap, participant_idx)
