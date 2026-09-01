@@ -140,9 +140,11 @@ def clean_and_validate_data(raw_data: npt.NDArray[np.float64]) -> npt.NDArray[np
             Array of rotation matrices with shape (``(n_frames, 3, 3)``
             after cleaning and validation.
     """
+    # coerce to float64
+    data = np.asarray(raw_data, dtype=np.float64)
 
     # align axes with ISB CS
-    clean_data = apply_axis_orientation_correction(raw_data)
+    clean_data = apply_axis_orientation_correction(data)
 
     # validate orthonormality and determinant
     validate_orthonorm_and_det(clean_data)
