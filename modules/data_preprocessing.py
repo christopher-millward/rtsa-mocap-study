@@ -4,6 +4,7 @@ Author: Christopher Millward
 """
 import numpy as np
 import numpy.typing as npt
+from scipy.spatial.transform import Rotation
 from config import ORTHONORMAL_TOLERANCE, DETERMINANT_TOLERANCE
 
 # ---- Functions ----
@@ -21,6 +22,9 @@ def get_correction_matrix(
     Returns:
         np.ndarray: A 3x3 rotation matrix that rotates m to align with the target matrix.
     """
+    # ensure shape is (3, 3)
+    if m.shape != (3, 3) or target.shape != (3, 3):
+        raise ValueError("m and target must have shape (3, 3)")
 
     # ensure normalized matrix
     m = m / np.linalg.norm(m)
@@ -48,6 +52,14 @@ def apply_axis_orientation_correction(
     Returns:
         np.ndarray: The corrected data in the form of a 3D array of shape (n_frames, 3, 3) after applying the correction matrix.
     """
+    # ensure shape is (n_frames, 3, 3)
+    if data.ndim != 3 or data.shape[1:] != (3, 3):
+        raise ValueError("data must have shape (n_frames, 3, 3)")
+
+    # ensure n_frames is not greater than the number of frames in data
+    if n_frames > data.shape[0]:    
+        raise ValueError("n_frames must not be greater than the number of frames in data")  
+
     # get the avg humerus direction for the first n_frames
     avg_hum_direction = data[:n_frames, :, :].mean(axis=0)
 
