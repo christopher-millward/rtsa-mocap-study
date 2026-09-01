@@ -178,6 +178,7 @@ def clean_and_validate_data(raw_data: npt.NDArray[np.float64]) -> npt.NDArray[np
     Clean a batch of arm rotation matrices for analysis. 
     Tasks:
         - Ensure all values are of type float64.
+        - Calibrate the IMU data.
         - Perform axis alignment to the ISB coordinate system.
         - Validate that the resulting matrices are proper rotation matrices.
 
@@ -193,8 +194,11 @@ def clean_and_validate_data(raw_data: npt.NDArray[np.float64]) -> npt.NDArray[np
     # coerce to float64
     data = np.asarray(raw_data, dtype=np.float64)
 
-    # align axes with ISB CS
+    # calibrate IMU
     clean_data = apply_imu_calibration(data)
+
+    # align axes with ISB CS
+    clean_data = align_with_ISB_axes(clean_data)
 
     # validate orthonormality and determinant
     validate_orthonorm_and_det(clean_data)
