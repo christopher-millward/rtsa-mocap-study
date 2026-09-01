@@ -1,383 +1,449 @@
 import pytest
 from unittest.mock import patch
-from scipy.spatial.transform import Rotation as R
+
 import numpy as np
-from numpy import typing as npt
-from modules.data_preprocessing import validate_orthonorm_and_det, align_axes_with_ISB
+from scipy.spatial.transform import Rotation as R
+
+from modules.data_preprocessing import (
+    apply_axis_orientation_correction,
+    clean_and_validate_data,
+    get_correction_matrix,
+    validate_orthonorm_and_det,
+)
 
 # ---- Global test variables ----
 SMALL_ANGLE = 1e-3
 SINGULARITY_TOLERANCE = 1e-7
 TOLERANCE = 1e-9
-TORSO_TO_ISB = np.array(
-    [
-        [0.0, 0.0, 1.0],
-        [0.0, -1.0, 0.0],
-        [1.0, 0.0, 0.0],
-    ],
-    dtype=np.float64,
-)
-RIGHT_TO_ISB = np.array(
-    [
-        [-1.0, 0.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ],
-    dtype=np.float64,
-)
-LEFT_TO_ISB = np.array(
-    [
-        [1.0, 0.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, -1.0],
-    ],
-    dtype=np.float64,
-)
+
 
 # ---- Helper Functions ----
-def _flatten_arm_matrices(
-    left: npt.NDArray[np.float64],
-    right: npt.NDArray[np.float64],
-) -> npt.NDArray[np.float64]:
-    """Combine left and right rotation matrices into an (N, 18) array."""
+def _ensure_valid_R_matrices(matrices):
+    # Check orthonormality: R.T @ R should be close to identity
+    identity = np.eye(3)
+    for i in range(matrices.shape[0]):
+        if not np.allclose(matrices[i].T @ matrices[i], identity, atol=TOLERANCE):
+            raise ValueError("matrices are not orthonormal")
 
-    if left.shape != right.shape:
-        raise ValueError("left and right must have the same shape")
+        # Check determinant: should be close to 1
+        if not np.isclose(np.linalg.det(matrices[i]), 1.0, atol=TOLERANCE):
+            raise ValueError("matrices do not have determinant of 1")
 
-    return np.concatenate(
-        [
-            left.reshape(-1, 9),
-            right.reshape(-1, 9),
-        ],
-        axis=1,
-    )
-
-def _unflatten_arm_matrices(
-    raw_data: npt.NDArray[np.float64],
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Split an (N, 18) array into left and right rotation matrices."""
-
-    if raw_data.ndim != 2 or raw_data.shape[1] != 18:
-        raise ValueError(
-            f"Expected raw_data shape (N,18), got {raw_data.shape}"
-        )
-
-    return (
-        raw_data[:, :9].reshape(raw_data.shape[0], 3, 3),
-        raw_data[:, 9:18].reshape(raw_data.shape[0], 3, 3),
-    )
-
-def _expected_alignment(
-    raw_data: npt.NDArray[np.float64],
-) -> npt.NDArray[np.float64]:
-    """Compute the expected ISB alignment using matrix multiplication.
-
-    This helper is intended for unit testing. It constructs full 3x3 rotation
-    matrices for each arm, applies the change-of-basis transformation using
-    matrix multiplication, and returns the transformed matrices in the same
-    flattened (N, 18) format expected by ``align_axes_with_ISB_flat``.
-    """
-    left, right = _unflatten_arm_matrices(raw_data)
-
-    left = TORSO_TO_ISB @ left @ LEFT_TO_ISB.T
-    right = TORSO_TO_ISB @ right @ RIGHT_TO_ISB.T
-
-    return _flatten_arm_matrices(left, right)
 
 # ---- Tests ----
-class TestAlignAxesWithISB:
-
-    # Should reject non-x18 inputs.
+class TestGetCorrectionMatrix:
     @pytest.mark.parametrize(
-        "raw_data",
+        "m, target",
         [
-            np.zeros(18),
-            np.zeros((18,)),
-            np.zeros((5, 17)),
-            np.zeros((5, 19)),
-            np.zeros((5, 18, 1)),
+            pytest.param(np.zeros((0, 3), dtype=np.float64), np.eye(3), id="m-is-empty"),
+            pytest.param(np.eye(3), np.zeros((0, 3), dtype=np.float64), id="target-is-empty"),
+            pytest.param(np.zeros((2, 2), dtype=np.float64), np.eye(3), id="m-not-3x3"),
+            pytest.param(np.eye(3), np.zeros((2, 2), dtype=np.float64), id="target-not-3x3"),
+            pytest.param(np.zeros((3, 4), dtype=np.float64), np.eye(3), id="m-non-square"),
+            pytest.param(np.eye(3), np.zeros((3, 4), dtype=np.float64), id="target-non-square"),
         ],
     )
-    def test_should_reject_invalid_shapes(self, raw_data):
-        with pytest.raises(ValueError, match=r"raw_data must have shape \(n_frames, 18\)"):
-            align_axes_with_ISB(raw_data)
+    def test_should_reject_non_3x3_inputs(self, m, target):
+        with pytest.raises(ValueError, match="m and target must have shape \\(3, 3\\)"):
+            get_correction_matrix(m, target)
 
-    # Should reject empty batches.
-    def test_should_reject_empty_batch(self):
-        raw_data = np.zeros((0, 18), dtype=np.float64)
-        with pytest.raises(ValueError, match="raw_data must contain at least one frame"):
-            align_axes_with_ISB(raw_data)
-
-    # Should reject non-numeric values during float conversion.
     @pytest.mark.parametrize(
-        "raw_data",
+        "m, target",
         [
-            pytest.param(np.array([[None if i == 5 else i for i in range(18)]], dtype=object), id="none"),
-            pytest.param(np.array([["x" if i == 5 else i for i in range(18)]], dtype=object), id="string"),
+            pytest.param(np.array([[1.0, "a", 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=object), np.eye(3), id="m-non-numeric"),
+            pytest.param(np.eye(3), np.array([[1.0, "b", 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=object), id="target-non-numeric"),
+            pytest.param(np.array([[np.nan, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64), np.eye(3), id="m-non-finite"),
+            pytest.param(np.eye(3), np.array([[np.inf, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64), id="target-non-finite"),
         ],
     )
-    def test_should_reject_non_numeric_values(self, raw_data):
-        with pytest.raises(ValueError, match=r"raw_data must contain only (numeric values|finite values)"):
-            align_axes_with_ISB(raw_data)
+    def test_should_reject_non_numeric_or_non_finite_inputs(self, m, target):
+        with pytest.raises((TypeError, ValueError)):
+            get_correction_matrix(m, target)
 
-    # Should reject non-finite numeric values.
-    @pytest.mark.parametrize(
-        "raw_data",
-        [
-            pytest.param(np.array([[np.nan if i == 5 else i for i in range(18)]], dtype=object), id="nan"),
-            pytest.param(np.array([[np.inf if i == 5 else i for i in range(18)]], dtype=object), id="inf"),
-        ],
-    )
-    def test_should_reject_non_finite_values(self, raw_data):
-        with pytest.raises(ValueError, match="raw_data must contain only finite values"):
-            align_axes_with_ISB(raw_data)
-
-    # Should align the identity matrix correctly.
-    def test_should_align_identity_rotation(self):
-        left = np.eye(3).reshape(1,3,3)
-        right = np.eye(3).reshape(1,3,3)
-
-        raw = _flatten_arm_matrices(left, right)
-        expected = _expected_alignment(raw)
-        result = align_axes_with_ISB(raw)
-
-        assert np.allclose(result, expected)
-
-    # Should align 90-degree rotations about all axes.
-    @pytest.mark.parametrize("axis", ["X","Y","Z"])
-    def test_should_align_90_degree_rotations(self, axis):
-        left = R.from_euler(axis, np.pi/2).as_matrix().reshape(1,3,3)
-        right = R.from_euler(axis, -np.pi/2).as_matrix().reshape(1,3,3)
-
-        raw_data = _flatten_arm_matrices(left, right)
-        expected = _expected_alignment(raw_data)
-        result = align_axes_with_ISB(raw_data)
-
-        assert np.allclose(result, expected)
-
-    # Should align batches of matrices frame by frame.
-    def test_should_align_multiple_matrices(self):
-        raw_data = np.concatenate(
+    def test_should_normalize_m_and_target_before_alignment(self):
+        m = np.array(
             [
-                _flatten_arm_matrices(R.from_euler("X", 0.1).as_matrix(), np.zeros((3, 3))),
-                _flatten_arm_matrices(R.from_euler("Y", 0.2).as_matrix(), np.zeros((3, 3))),
-                _flatten_arm_matrices(R.from_euler("Z", 0.3).as_matrix(), np.zeros((3, 3))),
-                _flatten_arm_matrices(R.from_euler("XYZ", [0.1, 0.2, 0.3]).as_matrix(), np.zeros((3, 3))),
+                [2.0, 0.0, 0.0],
+                [0.0, 2.0, 0.0],
+                [0.0, 0.0, 2.0],
+            ],
+            dtype=np.float64,
+        )
+        target = np.array(
+            [
+                [0.0, 4.0, 0.0],
+                [0.0, 0.0, 4.0],
+                [0.0, 0.0, 4.0],
+            ],
+            dtype=np.float64,
+        )
+
+        mock_rot = patch("modules.data_preprocessing.Rotation.align_vectors").start()
+        mock_rot.return_value = (R.from_euler("Z", 0.0), None)
+        try:
+            get_correction_matrix(m, target)
+        finally:
+            patch.stopall()
+
+        mock_call = mock_rot.call_args[0]
+        assert np.allclose(mock_call[0], m / np.linalg.norm(m))
+        assert np.allclose(mock_call[1], target / np.linalg.norm(target))
+
+    def test_should_call_align_vectors_with_m_and_target(self):
+        m = np.eye(3, dtype=np.float64)
+        target = np.array([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
+        expected = R.from_euler("Z", np.pi / 2.0).as_matrix()
+
+        with patch("modules.data_preprocessing.Rotation.align_vectors", return_value=(R.from_matrix(expected), None)) as mock_align:
+            result = get_correction_matrix(m, target)
+
+        assert mock_align.call_count == 1
+        assert result.shape == (3, 3)
+        assert np.allclose(result, expected)
+
+    @pytest.mark.parametrize(
+        "m, target",
+        [
+            pytest.param(np.eye(3, dtype=np.float64), np.eye(3, dtype=np.float64), id="identity-to-identity"),
+            pytest.param(R.from_euler("X", np.pi / 4.0).as_matrix(), np.eye(3, dtype=np.float64), id="x-rotation"),
+            pytest.param(R.from_euler("Y", np.pi / 3.0).as_matrix(), np.array([[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]], dtype=np.float64), id="arbitrary-rotation"),
+        ],
+    )
+    def test_should_return_valid_rotation_matrix(self, m, target):
+        result = get_correction_matrix(m, target)
+
+        assert result.shape == (3, 3)
+        assert np.allclose(result.T @ result, np.eye(3), atol=TOLERANCE)
+        assert np.isclose(np.linalg.det(result), 1.0, atol=TOLERANCE)
+        _ensure_valid_R_matrices(result.reshape(1, 3, 3))
+
+
+class TestApplyAxisOrientationCorrection:
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(np.zeros((0, 0, 0), dtype=np.float64), id="empty-array"),
+            pytest.param(np.zeros((10, 1, 3), dtype=np.float64), id="wrong-width"),
+            pytest.param(np.zeros((10, 3, 3, 3), dtype=np.float64), id="4d-array"),
+            pytest.param(np.zeros((5, 17), dtype=np.float64), id="wrong-flat-shape"),
+        ],
+    )
+    def test_should_reject_invalid_shape(self, data):
+
+        with pytest.raises(
+            ValueError,
+            match=r"data must have shape \(n_frames, 3, 3\)",
+        ):
+            apply_axis_orientation_correction(data, n_frames=0)
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(np.zeros((0, 3, 3), dtype=np.float64), id="empty-3x3-array"),
+        ],
+    )
+    def test_should_reject_empty_data(self, data):
+        with pytest.raises(
+            ValueError,
+            match="data must contain at least one frame",
+        ):
+            apply_axis_orientation_correction(data, n_frames=0)
+
+    def test_should_reject_n_frames_larger_than_data_length(self):
+        data = np.tile(np.eye(3, dtype=np.float64), (3, 1, 1))
+        with pytest.raises(ValueError, match="n_frames must not be greater than the number of frames in data"):
+            apply_axis_orientation_correction(data, n_frames=4)
+
+    def test_should_calculate_average_humerus_direction_using_first_n_frames(self):
+        data = np.stack(
+            [
+                R.from_euler("X", 0.1).as_matrix(),
+                R.from_euler("Y", 0.2).as_matrix(),
+                R.from_euler("Z", 0.3).as_matrix(),
             ],
             axis=0,
         )
-        expected = _expected_alignment(raw_data)
-        result = align_axes_with_ISB(raw_data)
+        target = np.eye(3, dtype=np.float64)
 
+        with patch(
+            "modules.data_preprocessing.get_correction_matrix", 
+            return_value=np.eye(3, dtype=np.float64)
+        ) as mock_get_correction_matrix:
+            apply_axis_orientation_correction(data, n_frames=2, target=target)
+
+        expected_avg = data[:2].mean(axis=0)
+        mock_get_correction_matrix.assert_called_once()
+        actual_avg, actual_target = mock_get_correction_matrix.call_args.args
+
+        np.testing.assert_allclose(actual_avg, expected_avg)
+        np.testing.assert_array_equal(actual_target, target)
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(np.array([[[np.nan, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], [[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]], dtype=np.float64), id="nan-in-data"),
+            pytest.param(np.array([[[np.inf, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], [[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]], dtype=np.float64), id="inf-in-data"),
+        ],
+    )
+    def test_should_reject_non_finite_numeric_values(self, data):
+        with pytest.raises(ValueError):
+            apply_axis_orientation_correction(data)
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(np.array([[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[1, 0, 0], [0, 1, 0], [0, 0, 1]]], dtype=object), id="non-numeric-data"),
+            pytest.param(np.array([[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[2, 0, 0], [0, 2, 0], [0, 0, 2]]], dtype=object), id="object-array-data"),
+        ],
+    )
+    def test_should_reject_non_numeric_values(self, data):
+        with pytest.raises((TypeError, ValueError)):
+            apply_axis_orientation_correction(data)
+
+    def test_should_apply_correction_matrix_to_every_frame(self):
+        data = np.stack(
+            [
+                R.from_euler("X", 0.1).as_matrix(),
+                R.from_euler("Y", 0.2).as_matrix(),
+                R.from_euler("Z", 0.3).as_matrix(),
+            ],
+            axis=0,
+        )
+        correction = R.from_euler("Z", np.pi / 2.0).as_matrix()
+
+        with patch("modules.data_preprocessing.get_correction_matrix", return_value=correction):
+            result = apply_axis_orientation_correction(data, n_frames=data.shape[0])
+
+        expected = correction @ data
         assert np.allclose(result, expected)
 
-    # Should preserve orthonormality for valid rotation matrices.
-    def test_should_preserve_orthonormality(self):
-        raw_left = R.from_euler("X", np.pi/2).as_matrix().reshape(1,3,3)
-        raw_right = R.from_euler("X", -np.pi/2).as_matrix().reshape(1,3,3)
-        raw_data = _flatten_arm_matrices(raw_left, raw_right)
-
-        result = align_axes_with_ISB(raw_data)
-        result_left = result[:, :9].reshape(-1,3,3)
-        result_right = result[:, 9:].reshape(-1,3,3)
-
-        for matrices in (result_left, result_right):
-            gram = matrices.transpose(0,2,1) @ matrices
-            identity = np.broadcast_to(np.eye(3), gram.shape)
-
-            assert np.allclose(gram, identity, atol=TOLERANCE)
-
-    # Should preserve a determinant of +1 for proper rotation matrices.
-    def test_should_preserve_determinant(self):
-        raw_left = R.from_euler("X", np.pi/2).as_matrix().reshape(1,3,3)
-        raw_right = R.from_euler("X", -np.pi/2).as_matrix().reshape(1,3,3)
-        raw_data = _flatten_arm_matrices(raw_left, raw_right)
-
-        result = align_axes_with_ISB(raw_data)
-        result_left = result[:, :9].reshape(-1,3,3)
-        result_right = result[:, 9:].reshape(-1,3,3)
-
-        assert np.allclose(np.linalg.det(result_left), 1.0, atol=TOLERANCE)
-        assert np.allclose(np.linalg.det(result_right), 1.0, atol=TOLERANCE)
-
-    # Should recover the original matrices when the inverse transform is applied.
-    def test_should_recover_original_matrix_with_inverse_transform(self):
-        raw_left = R.from_euler("X", np.pi/2).as_matrix().reshape(1,3,3)
-        raw_right = R.from_euler("X", -np.pi/2).as_matrix().reshape(1,3,3)
-        raw_data = _flatten_arm_matrices(raw_left, raw_right)
-
-        result = align_axes_with_ISB(raw_data)
-        result_left = result[:, :9].reshape(-1,3,3)
-        result_right = result[:, 9:].reshape(-1,3,3)
-
-        left_recovered = (
-            TORSO_TO_ISB.T
-            @ result_left
-            @ LEFT_TO_ISB
+    def test_should_return_valid_rotation_matrices_for_valid_input(self):
+        data = np.stack(
+            [
+                R.from_euler("XYZ", [0.1, 0.2, 0.3]).as_matrix(),
+                R.from_euler("XYZ", [0.4, -0.2, 0.5]).as_matrix(),
+                R.from_euler("XYZ", [-0.3, 0.6, 0.1]).as_matrix(),
+            ],
+            axis=0,
         )
 
-        right_recovered = (
-            TORSO_TO_ISB.T
-            @ result_right
-            @ RIGHT_TO_ISB
-        )
+        result = apply_axis_orientation_correction(data, n_frames=2)
 
-        assert np.allclose(left_recovered, raw_left, atol=TOLERANCE)
-        assert np.allclose(right_recovered, raw_right, atol=TOLERANCE)
+        assert result.shape == data.shape
+        _ensure_valid_R_matrices(result)
 
-    # Should remain stable for rotations very close to identity.
-    def test_should_handle_rotations_close_to_identity(self):
-        left = R.from_euler("Y", 1e-10).as_matrix().reshape(1, 3, 3)
-        right = R.from_euler("Y", 1e-10).as_matrix().reshape(1, 3, 3)
-        raw_data = _flatten_arm_matrices(left, right)
-        expected = _expected_alignment(raw_data)
+    @pytest.mark.parametrize("angle", [0.0, 1e-9, 1e-6, 1e-3])
+    def test_should_remain_stable_for_rotations_close_to_identity(self, angle):
+        data = np.tile(R.from_euler("X", angle).as_matrix(), (5, 1, 1))
 
-        result = align_axes_with_ISB(raw_data)
+        result = apply_axis_orientation_correction(data, n_frames=data.shape[0])
 
-        assert np.allclose(result, expected, atol=TOLERANCE)
+        assert result.shape == data.shape
+        _ensure_valid_R_matrices(result)
 
-    # Should produce a different result when the transformation is applied twice.
-    def test_should_not_match_single_application_after_repeated_application(self):
-        left = R.from_euler( "XYZ", [0.25, 0.5, 0.75]).as_matrix().reshape(1, 3, 3)
-        right = R.from_euler( "XYZ", [0.25, 0.5, 0.75]).as_matrix().reshape(1, 3, 3)
-        raw_data = _flatten_arm_matrices(left, right)
-        single_application = align_axes_with_ISB(raw_data)
-        repeated_application = align_axes_with_ISB(single_application)
+    @pytest.mark.parametrize(
+        "angle",
+        [
+            0.0 + SINGULARITY_TOLERANCE,
+            np.pi - SINGULARITY_TOLERANCE,
+        ],
+    )
+    def test_should_handle_matrices_near_singularities(self, angle):
+        data = np.tile(R.from_euler("Y", angle).as_matrix(), (5, 1, 1))
 
-        assert not np.allclose(repeated_application, single_application)
+        result = apply_axis_orientation_correction(data, n_frames=data.shape[0])
+
+        assert result.shape == data.shape
+        _ensure_valid_R_matrices(result)
 
 
 class TestValidateOrthonormAndDet:
-    # Should reject non-3x3 matrices
     @pytest.mark.parametrize(
         "matrices",
         [
-            pytest.param(np.zeros((2, 2, 2), dtype=np.float64),
-                         id="2x2-matrices"),
-            pytest.param(np.zeros((2, 3, 4), dtype=np.float64),
-                         id="non-square-matrices"),
-            pytest.param(np.zeros((2, 3), dtype=np.float64),
-                         id="flat-matrices"),
-            pytest.param(np.zeros((2, 4, 4), dtype=np.float64),
-                         id="4x4-matrices"),
+            pytest.param(np.zeros((2, 2, 2), dtype=np.float64), id="2x2-matrices"),
+            pytest.param(np.zeros((2, 3, 4), dtype=np.float64), id="non-square-matrices"),
+            pytest.param(np.zeros((2, 3), dtype=np.float64), id="flat-matrices"),
+            pytest.param(np.zeros((2, 4, 4), dtype=np.float64), id="4x4-matrices"),
         ],
     )
     def test_should_reject_non_3x3_matrices(self, matrices):
         with pytest.raises(ValueError, match=r"matrices must have shape \(n_frames, 3, 3\)"):
             validate_orthonorm_and_det(matrices)
 
-    # Should reject empty batch
     def test_should_reject_empty_batch(self):
         matrices = np.zeros((0, 3, 3), dtype=np.float64)
         with pytest.raises(ValueError, match="batch must contain at least one matrix"):
             validate_orthonorm_and_det(matrices)
 
-    # Should coerce to float64
     def test_should_perform_calculations_using_float64_precision(self):
         data = R.from_euler("X", 0.1).as_matrix().reshape(1, 3, 3)
 
-        # spy on the np.asarray call
         with patch("numpy.asarray", wraps=np.asarray) as spy_asarray:
             validate_orthonorm_and_det(data)
 
-        # assert that it is specifically being called on the data
-        # and not in some other internal call
         assert any(
             call.args[0] is data and call.kwargs.get("dtype") == np.float64
             for call in spy_asarray.call_args_list
         )
 
-    # Should accept valid rotation matrix
     @pytest.mark.parametrize(
         "matrix",
         [
-            pytest.param(R.from_euler(
-                'X', np.pi / 5).as_matrix().reshape(1, 3, 3), id="x-rotation"),
-            pytest.param(R.from_euler(
-                'Y', np.pi / 5).as_matrix().reshape(1, 3, 3), id="y-rotation"),
-            pytest.param(R.from_euler(
-                'Z', np.pi / 5).as_matrix().reshape(1, 3, 3), id="z-rotation"),
-            pytest.param(R.from_euler('XYZ', [0.1, 0.2, 0.3]).as_matrix().reshape(
-                1, 3, 3), id="xyz-rotation"),
-            pytest.param(R.from_euler('X', SMALL_ANGLE).as_matrix().reshape(
-                1, 3, 3), id="small-angle-rotation"),
-            pytest.param(R.from_euler(
-                'Y', np.pi / 2).as_matrix().reshape(1, 3, 3), id="90-degree-rotation"),
-        ]
+            pytest.param(R.from_euler("X", np.pi / 5).as_matrix().reshape(1, 3, 3), id="x-rotation"),
+            pytest.param(R.from_euler("Y", np.pi / 5).as_matrix().reshape(1, 3, 3), id="y-rotation"),
+            pytest.param(R.from_euler("Z", np.pi / 5).as_matrix().reshape(1, 3, 3), id="z-rotation"),
+            pytest.param(R.from_euler("XYZ", [0.1, 0.2, 0.3]).as_matrix().reshape(1, 3, 3), id="xyz-rotation"),
+            pytest.param(R.from_euler("X", SMALL_ANGLE).as_matrix().reshape(1, 3, 3), id="small-angle-rotation"),
+            pytest.param(R.from_euler("Y", np.pi / 2).as_matrix().reshape(1, 3, 3), id="90-degree-rotation"),
+        ],
     )
     def test_should_accept_valid_rotation_matrices(self, matrix):
         try:
             validate_orthonorm_and_det(matrix)
         except ValueError:
-            pytest.fail(
-                "validate_orthonorm_and_det raised ValueError unexpectedly for valid rotation matrices.")
+            pytest.fail("validate_orthonorm_and_det raised ValueError unexpectedly for valid rotation matrices.")
 
-    # Should handle batches of valid rotation matrices
     @pytest.mark.parametrize(
         "matrices",
         [
-            pytest.param(np.tile(R.from_euler('X', 0.1).as_matrix(),
-                         (5, 1, 1)), id="batch-of-x-rotations"),
-            pytest.param(np.tile(R.from_euler('Y', 0.1).as_matrix(),
-                         (5, 1, 1)), id="batch-of-y-rotations"),
-            pytest.param(np.tile(R.from_euler('Z', 0.1).as_matrix(),
-                         (5, 1, 1)), id="batch-of-z-rotations"),
-            pytest.param(np.tile(R.from_euler('XYZ', [0.1, 0.2, 0.3]).as_matrix(
-            ), (5, 1, 1)), id="batch-of-xyz-rotations"),
-        ]
+            pytest.param(np.tile(R.from_euler("X", 0.1).as_matrix(), (5, 1, 1)), id="batch-of-x-rotations"),
+            pytest.param(np.tile(R.from_euler("Y", 0.1).as_matrix(), (5, 1, 1)), id="batch-of-y-rotations"),
+            pytest.param(np.tile(R.from_euler("Z", 0.1).as_matrix(), (5, 1, 1)), id="batch-of-z-rotations"),
+            pytest.param(np.tile(R.from_euler("XYZ", [0.1, 0.2, 0.3]).as_matrix(), (5, 1, 1)), id="batch-of-xyz-rotations"),
+        ],
     )
     def test_should_handle_batches_of_valid_rotation_matrices(self, matrices):
         try:
             validate_orthonorm_and_det(matrices)
         except ValueError:
-            pytest.fail(
-                "validate_orthonorm_and_det raised ValueError unexpectedly for a batch of valid rotation matrices.")
+            pytest.fail("validate_orthonorm_and_det raised ValueError unexpectedly for a batch of valid rotation matrices.")
 
-    # Should reject non-orthonormal matrices
     def test_should_reject_non_orthonormal_matrices(self):
-        matrices = np.ones((1, 3, 3), dtype=np.float64)  # not orthonormal
+        matrices = np.ones((1, 3, 3), dtype=np.float64)
         with pytest.raises(ValueError, match="matrices must be orthonormal rotation matrices"):
             validate_orthonorm_and_det(matrices)
 
-    # Should reject matrices with determinant not equal to +1
     def test_should_reject_non_one_determinant(self):
         matrices = np.eye(3, dtype=np.float64).reshape(1, 3, 3)
         matrices[0][0][0] = -1
         with pytest.raises(ValueError, match="matrices must have a determinant of 1"):
             validate_orthonorm_and_det(matrices)
 
-    # Should reject batches containing any invalid matrices
     @pytest.mark.parametrize(
         "matrices",
         [
-            pytest.param(np.ones((1, 3, 3), dtype=np.float64),
-                         id="non-orthonormal"),
-            pytest.param(np.zeros((1, 3, 3), dtype=np.float64),
-                         id="zero-matrix"),
-            pytest.param(np.concatenate(
-                (
-                    np.tile(R.from_euler('X', 0.1).as_matrix(), (4, 1, 1)),
-                    np.ones((1, 3, 3), dtype=np.float64)
-                ), axis=0), id="batch-with-one-invalid"
-            ),
-        ]
+            pytest.param(np.ones((1, 3, 3), dtype=np.float64), id="non-orthonormal"),
+            pytest.param(np.zeros((1, 3, 3), dtype=np.float64), id="zero-matrix"),
+            pytest.param(np.concatenate((np.tile(R.from_euler("X", 0.1).as_matrix(), (4, 1, 1)), np.ones((1, 3, 3), dtype=np.float64)), axis=0), id="batch-with-one-invalid"),
+        ],
     )
     def test_should_reject_batches_with_any_invalid_matrices(self, matrices):
         with pytest.raises(ValueError):
             validate_orthonorm_and_det(matrices)
 
-    # Should handle matrix near singularities without raising false positives
     @pytest.mark.parametrize(
         "angle",
         [
             0.0 + SINGULARITY_TOLERANCE,
-            np.pi - SINGULARITY_TOLERANCE
-        ]
+            np.pi - SINGULARITY_TOLERANCE,
+        ],
     )
     def test_should_handle_matrices_near_singularities(self, angle):
-        matrix = R.from_euler('Y', angle).as_matrix().reshape(1, 3, 3)
+        matrix = R.from_euler("Y", angle).as_matrix().reshape(1, 3, 3)
         try:
             validate_orthonorm_and_det(matrix)
         except ValueError:
-            pytest.fail(
-                "validate_orthonorm_and_det raised ValueError unexpectedly for a valid rotation matrix near a singularity.")
+            pytest.fail("validate_orthonorm_and_det raised ValueError unexpectedly for a valid rotation matrix near a singularity.")
+
+
+class TestCleanAndValidateData:
+    """Tests for clean_and_validate_data."""
+
+    def test_should_coerce_input_to_float64(self):
+        """Should pass float64 data to the axis correction function."""
+        raw_data = np.array(
+            [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+            dtype=np.float32,
+        )
+
+        with patch(
+            "modules.data_preprocessing.apply_axis_orientation_correction",
+            return_value=raw_data.astype(np.float64),
+        ) as mock_apply:
+            clean_and_validate_data(raw_data) #type:ignore
+
+        mock_apply.assert_called_once()
+        actual_data = mock_apply.call_args.args[0]
+        assert actual_data.dtype == np.float64
+        np.testing.assert_array_equal(actual_data, raw_data.astype(np.float64))
+
+    def test_should_call_apply_axis_orientation_correction_with_coerced_data(
+        self
+    ):
+        """Should pass coerced float64 data to axis correction."""
+        raw_data = np.array(
+            [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+            dtype=np.float32,
+        )
+        expected_data = raw_data.astype(np.float64)
+        corrected_data = np.ones((1, 3, 3), dtype=np.float64)
+
+        with patch(
+            "modules.data_preprocessing.apply_axis_orientation_correction",
+            return_value=corrected_data,
+        ) as mock_apply, patch(
+            "modules.data_preprocessing.validate_orthonorm_and_det",
+        ):
+            clean_and_validate_data(raw_data)#type:ignore
+
+        mock_apply.assert_called_once()
+
+        actual_data = mock_apply.call_args.args[0]
+
+        np.testing.assert_array_equal(actual_data, expected_data)
+
+    def test_should_call_validate_with_cleaned_data(self):
+        """Should validate the data returned by axis correction."""
+        raw_data = np.array(
+            [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+            dtype=np.float32,
+        )
+        cleaned_data = np.array(
+            [[[0, 1, 0], [1, 0, 0], [0, 0, 1]]],
+            dtype=np.float64,
+        )
+
+        with patch(
+            "modules.data_preprocessing.apply_axis_orientation_correction",
+            return_value=cleaned_data,
+        ), patch(
+            "modules.data_preprocessing.validate_orthonorm_and_det",
+        ) as mock_validate:
+            clean_and_validate_data(raw_data)#type:ignore
+
+        mock_validate.assert_called_once()
+        actual_data = mock_validate.call_args.args[0]
+        np.testing.assert_array_equal(actual_data, cleaned_data)
+
+    def test_should_return_cleaned_data(self):
+        """Should return the data produced by axis correction."""
+        raw_data = np.array(
+            [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+            dtype=np.float32,
+        )
+        cleaned_data = np.array(
+            [[[0, 1, 0], [1, 0, 0], [0, 0, 1]]],
+            dtype=np.float64,
+        )
+
+        with patch(
+            "modules.data_preprocessing.apply_axis_orientation_correction",
+            return_value=cleaned_data,
+        ), patch(
+            "modules.data_preprocessing.validate_orthonorm_and_det",
+        ):
+            result = clean_and_validate_data(raw_data) #type:ignore
+
+        np.testing.assert_array_equal(result, cleaned_data)

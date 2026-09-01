@@ -66,68 +66,45 @@ class TestValidateRotationData:
     @pytest.fixture
     def valid_rotation_data(self) -> np.ndarray:
         """Create valid flattened rotation matrix data."""
-        return np.ones((10, 18))
-
-    @pytest.mark.parametrize("arm", ["left", "right"])
-    def test_accepts_valid_arm_values(self, valid_rotation_data, arm):
-        result = _validate_rotation_data(valid_rotation_data, arm)
-
-        assert isinstance(result, np.ndarray)
-        assert result.shape == (10, 18)
-
-    @pytest.mark.parametrize(
-        "invalid_arm",
-        [
-            "Left",
-            "RIGHT",
-            "middle",
-            "",
-            None,
-            1,
-        ],
-    )
-    def test_rejects_invalid_arm_values(self, valid_rotation_data, invalid_arm):
-        with pytest.raises(ValueError, match="arm must be"):
-            _validate_rotation_data(valid_rotation_data, invalid_arm)
+        return np.ones((10, 3, 3), dtype=np.float64)
 
     @pytest.mark.parametrize(
         "invalid_shape",
         [
             (18,),          # 1D array
-            (10, 17),       # Too few columns
-            (10, 19),       # Too many columns
-            (2, 3, 3),      # 3D array
-            (1, 1, 18),     # Incorrect dimensionality
+            (10, 10),       # 2D array
+            (10, 3, 3, 3),  # 4D array
+            (1, 1, 3),     # Incorrect dimensionality
         ],
     )
     def test_rejects_invalid_data_shapes(self, invalid_shape):
-        """Rejects arrays that do not have shape (n_frames, 18)."""
+        """Rejects arrays that do not have shape (n_frames, 3, 3)."""
         data = np.ones(invalid_shape)
 
         with pytest.raises(ValueError):
-            _validate_rotation_data(data, "left")
+            _validate_rotation_data(data)
 
     def test_rejects_empty_array(self):
         """Rejects arrays with zero frames."""
-        data = np.empty((0, 18))
+        data = np.empty((0, 3, 3))
 
         with pytest.raises(
             ValueError
         ):
-            _validate_rotation_data(data, "left")
+            _validate_rotation_data(data)
 
     def test_converts_input_to_float64(self):
         """Converts integer input data to np.float64."""
-        data = np.ones((5, 18), dtype=np.int32)
+        data = np.ones((5, 3, 3), dtype=np.int32)
 
-        result = _validate_rotation_data(data, "right") # type: ignore[arg-type]
+        result = _validate_rotation_data(data) #type:ignore
 
         assert result.dtype == np.float64
 
     def test_output_is_numpy_array(self):
         """Returns a numpy array."""
-        data =np.ones((5, 18), dtype=np.float64)
-        result = _validate_rotation_data(data, "left")
+        data =np.ones((5, 3, 3), dtype=np.float64)
+        result = _validate_rotation_data(data)
 
         assert isinstance(result, np.ndarray)
         assert result.dtype == np.float64
@@ -140,17 +117,17 @@ class TestValidateRotationData:
         data = valid_rotation_data.copy()
         data[0, 0] = 42.5
 
-        result = _validate_rotation_data(data, "left")
+        result = _validate_rotation_data(data)
 
         np.testing.assert_array_equal(result, data)
 
     def test_accepts_single_frame(self):
         """Accepts data containing one frame."""
-        data = np.zeros((1, 18))
+        data = np.zeros((1, 3, 3))
 
-        result = _validate_rotation_data(data, "right")
+        result = _validate_rotation_data(data)
 
-        assert result.shape == (1, 18)
+        assert result.shape == (1, 3, 3)
         assert result.dtype == np.float64
 
 
@@ -496,13 +473,7 @@ class TestCreateRelativeMatricesAndPosturalAngles:
     def data(self) -> np.ndarray:
         """Create valid input data."""
         rng = np.random.default_rng(42)
-        return rng.random((10, 18))
-
-    @pytest.fixture
-    def matrices(self) -> np.ndarray:
-        """Mock rotation matrices."""
-        rng = np.random.default_rng(1)
-        return rng.random((10, 3, 3))
+        return rng.random((10, 3, 3), dtype=np.float64)
 
     @pytest.fixture
     def postural_angles(self) -> MagicMock:
@@ -524,16 +495,11 @@ class TestCreateRelativeMatricesAndPosturalAngles:
         self,
         mocker,
         data,
-        matrices,
         postural_angles,
         normalized_postural_angles,
         relative_matrices,
     ):
         """Calls each dependency exactly once and returns their outputs."""
-        create = mocker.patch(
-            "modules.kinematics.create_rotation_matrices",
-            return_value=matrices,
-        )
         get_angles = mocker.patch(
             "modules.kinematics._get_postural_angles",
             return_value=postural_angles,
@@ -548,14 +514,12 @@ class TestCreateRelativeMatricesAndPosturalAngles:
         )
 
         result_matrices, result_angles = _create_relative_matrices_and_postural_angles(
-            data,
-            "left",
+            data
         )
 
-        create.assert_called_once_with(data, "left")
-        get_angles.assert_called_once_with(matrices)
+        get_angles.assert_called_once_with(data)
         normalize.assert_called_once_with(postural_angles)
-        compute.assert_called_once_with(matrices)
+        compute.assert_called_once_with(data)
 
         assert result_matrices is relative_matrices
         assert result_angles is normalized_postural_angles
@@ -564,7 +528,6 @@ class TestCreateRelativeMatricesAndPosturalAngles:
         self,
         mocker,
         data,
-        matrices,
         postural_angles,
         normalized_postural_angles,
         relative_matrices,
@@ -572,10 +535,6 @@ class TestCreateRelativeMatricesAndPosturalAngles:
         """Does not modify the input data."""
         original = data.copy()
 
-        mocker.patch(
-            "modules.kinematics.create_rotation_matrices",
-            return_value=matrices,
-        )
         mocker.patch(
             "modules.kinematics._get_postural_angles",
             return_value=postural_angles,
@@ -589,7 +548,7 @@ class TestCreateRelativeMatricesAndPosturalAngles:
             return_value=relative_matrices,
         )
 
-        _create_relative_matrices_and_postural_angles(data, "left")
+        _create_relative_matrices_and_postural_angles(data)
 
         np.testing.assert_array_equal(data, original)
 
@@ -1522,6 +1481,7 @@ class TestCalculateTraceRotationAngles:
 
         assert np.all(result >= 0.0)
 
+
 class TestCalculateBinRotations:
     @pytest.fixture
     def data(self) -> np.ndarray:
@@ -1582,21 +1542,17 @@ class TestCalculateBinRotations:
             "modules.kinematics.get_pbar_manager",
         )
 
-        side="left"
         result = calculate_bin_rotations(
             data,
-            side,
             participant_idx=1
         )
 
         mock_validate_matrices.assert_called_once_with(
-            data,
-            side
+            data
         )
 
         mock_create_relative_matrices_and_postures.assert_called_once_with(
-            validated_data,
-            side
+            validated_data
         )
 
         mock_heatmap_constructor.assert_called_once_with()

@@ -10,7 +10,6 @@ import numpy.typing as npt
 from typing import Literal, Tuple, Iterator
 from scipy.spatial.transform import Rotation as R
 from schema import Heatmap
-from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
 from modules.progress_bar import get_pbar_manager
 
@@ -45,15 +44,13 @@ class BinRotationResult:
 # ----------------------------
 
 def _validate_rotation_data(
-    data: npt.NDArray[np.float64],
-    arm: Literal["left", "right"],
+    data: npt.NDArray[np.float64]
 ) -> npt.NDArray[np.float64]:
     """
-    Validate incoming data and convert it to np.float64 dtype.
+    Validate incoming data and ensure it is of type np.float64.
 
     Args:
-        data (npt.NDArray[np.float64]): Flattened rotation matrices with shape (n_frames, 18).
-        arm (Literal["left", "right"]): Arm to process.
+        data (npt.NDArray[np.float64]): Array of rotation matrices with shape (n_frames, 3, 3).
 
     Returns:
         npt.NDArray[np.float64]: Validated numpy array of shape (n_frames, 18).
@@ -61,22 +58,15 @@ def _validate_rotation_data(
     Raises:
         ValueError: If inputs are invalid.
     """
-    # Validate arm
-    if arm not in ['left', 'right']:
-        raise ValueError(f"arm must be 'left' or 'right', got {arm}")
-
-    # Validate data shape
-    data_array = np.asarray(data, dtype=np.float64)
-    if data_array.ndim != 2 or data_array.shape[1] != 18:
-        raise ValueError(
-            'Data must be a 2D array with exactly 18 columns.'
-        )
+    # Validate data shape is (n_frames, 3, 3)
+    if data.ndim != 3 or data.shape[1:] != (3, 3):
+        raise ValueError("data must have shape (n_frames, 3, 3)")
 
     # Validate data is not empty
-    if data_array.shape[0] == 0:
+    if data.shape[0] == 0:
         raise ValueError("Input data cannot be empty")
 
-    return data_array
+    return data.astype(np.float64, copy=False)
 
 
 def _get_postural_angles(
@@ -206,8 +196,7 @@ def _compute_incremental_rotation_matrices(
 
 
 def _create_relative_matrices_and_postural_angles(
-    data: npt.NDArray[np.float64],
-    arm: Literal["left", "right"],
+    data: npt.NDArray[np.float64]
 ) -> tuple[
     npt.NDArray[np.float64],
     PosturalAngles,
@@ -216,21 +205,19 @@ def _create_relative_matrices_and_postural_angles(
     Calculate relative rotations and postural angles.
 
     Args:
-        data (npt.NDArray[np.float64]): Flattened rotation matrices with shape (n_frames, 18).
-        arm (Literal["left", "right"]): Arm to process.
+        data (npt.NDArray[np.float64]): Array of rotation matrices with shape (n_frames, 3, 3).
 
     Returns:
         tuple[npt.NDArray[np.float64], PosturalAngles]: A tuple containing:
             - Relative rotation matrices
             - Normalized postural angles
     """
-    matrices = create_rotation_matrices(data, arm)
 
-    postural_angles = _get_postural_angles(matrices)
+    postural_angles = _get_postural_angles(data)
     postural_angles = _normalize_postural_angles(postural_angles)
 
     relative_matrices = _compute_incremental_rotation_matrices(
-        matrices
+        data
     )
 
     return relative_matrices, postural_angles
@@ -630,15 +617,16 @@ def _populate_heatmap(
 
 def calculate_bin_rotations(
     data: npt.NDArray[np.float64],
-    arm: Literal['left', 'right'],
     participant_idx: int,
 ) -> Heatmap:   
-
+    """
+    Calculate the cumulative motion for each bin in the heatmap for a given arm.
+    """
     # validate incoming data
-    data_array = _validate_rotation_data(data, arm)
+    valid_data = _validate_rotation_data(data)
 
     # calculate relative motion
-    relative_matrices, postural_angles = _create_relative_matrices_and_postural_angles(data_array, arm)
+    relative_matrices, postural_angles = _create_relative_matrices_and_postural_angles(valid_data)
 
     # Initialize heatmap object
     heatmap = Heatmap()
