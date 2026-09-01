@@ -17,7 +17,7 @@ TOLERANCE = 1e-9
 
 
 # ---- Helper Functions ----
-def _validate_orthonorm_and_det(matrices):
+def _ensure_valid_R_matrices(matrices):
     # Check orthonormality: R.T @ R should be close to identity
     identity = np.eye(3)
     for i in range(matrices.shape[0]):
@@ -114,7 +114,7 @@ class TestGetCorrectionMatrix:
         assert result.shape == (3, 3)
         assert np.allclose(result.T @ result, np.eye(3), atol=TOLERANCE)
         assert np.isclose(np.linalg.det(result), 1.0, atol=TOLERANCE)
-        _validate_orthonorm_and_det(result.reshape(1, 3, 3))
+        _ensure_valid_R_matrices(result.reshape(1, 3, 3))
 
 
 class TestApplyAxisOrientationCorrection:
@@ -230,7 +230,7 @@ class TestApplyAxisOrientationCorrection:
         result = apply_axis_orientation_correction(data, n_frames=2)
 
         assert result.shape == data.shape
-        _validate_orthonorm_and_det(result)
+        _ensure_valid_R_matrices(result)
 
     @pytest.mark.parametrize("angle", [0.0, 1e-9, 1e-6, 1e-3])
     def test_should_remain_stable_for_rotations_close_to_identity(self, angle):
@@ -239,7 +239,7 @@ class TestApplyAxisOrientationCorrection:
         result = apply_axis_orientation_correction(data, n_frames=data.shape[0])
 
         assert result.shape == data.shape
-        _validate_orthonorm_and_det(result)
+        _ensure_valid_R_matrices(result)
 
     @pytest.mark.parametrize(
         "angle",
@@ -254,7 +254,7 @@ class TestApplyAxisOrientationCorrection:
         result = apply_axis_orientation_correction(data, n_frames=data.shape[0])
 
         assert result.shape == data.shape
-        _validate_orthonorm_and_det(result)
+        _ensure_valid_R_matrices(result)
 
 
 class TestValidateOrthonormAndDet:
