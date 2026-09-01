@@ -2,31 +2,34 @@ import pytest
 from unittest.mock import patch
 
 import numpy as np
+import numpy.typing as npt
 from scipy.spatial.transform import Rotation as R
 
 from modules.data_preprocessing import (
     apply_imu_calibration,
+    align_with_ISB_axes,
     clean_and_validate_data,
     get_correction_matrix,
     validate_orthonorm_and_det,
 )
 
-# ---- Global test variables ----
-SMALL_ANGLE = 1e-3
-SINGULARITY_TOLERANCE = 1e-7
-TOLERANCE = 1e-9
-
+from config import (
+    AXIS_MAP, 
+    TEST_PRECISION_TOLERANCE, 
+    SMALLEST_CLINICALLY_RELEVANT_ANGLE, 
+    TEST_SINGULARITY_TOLERANCE
+)
 
 # ---- Helper Functions ----
 def _ensure_valid_R_matrices(matrices):
     # Check orthonormality: R.T @ R should be close to identity
     identity = np.eye(3)
     for i in range(matrices.shape[0]):
-        if not np.allclose(matrices[i].T @ matrices[i], identity, atol=TOLERANCE):
+        if not np.allclose(matrices[i].T @ matrices[i], identity, atol=TEST_PRECISION_TOLERANCE):
             raise ValueError("matrices are not orthonormal")
 
         # Check determinant: should be close to 1
-        if not np.isclose(np.linalg.det(matrices[i]), 1.0, atol=TOLERANCE):
+        if not np.isclose(np.linalg.det(matrices[i]), 1.0, atol=TEST_PRECISION_TOLERANCE):
             raise ValueError("matrices do not have determinant of 1")
 
 
@@ -113,12 +116,12 @@ class TestGetCorrectionMatrix:
         result = get_correction_matrix(m, target)
 
         assert result.shape == (3, 3)
-        assert np.allclose(result.T @ result, np.eye(3), atol=TOLERANCE)
-        assert np.isclose(np.linalg.det(result), 1.0, atol=TOLERANCE)
+        assert np.allclose(result.T @ result, np.eye(3), atol=TEST_PRECISION_TOLERANCE)
+        assert np.isclose(np.linalg.det(result), 1.0, atol=TEST_PRECISION_TOLERANCE)
         _ensure_valid_R_matrices(result.reshape(1, 3, 3))
 
 
-class TestApplyAxisOrientationCorrection:
+class TestApplyIMUCalibration:
 
     @pytest.mark.parametrize(
         "data",
@@ -245,8 +248,8 @@ class TestApplyAxisOrientationCorrection:
     @pytest.mark.parametrize(
         "angle",
         [
-            0.0 + SINGULARITY_TOLERANCE,
-            np.pi - SINGULARITY_TOLERANCE,
+            0.0 + TEST_SINGULARITY_TOLERANCE,
+            np.pi - TEST_SINGULARITY_TOLERANCE,
         ],
     )
     def test_should_handle_matrices_near_singularities(self, angle):
@@ -256,6 +259,176 @@ class TestApplyAxisOrientationCorrection:
 
         assert result.shape == data.shape
         _ensure_valid_R_matrices(result)
+
+
+class TestAlignWithISBAxes:
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(np.zeros((0, 0, 0), dtype=np.float64), id="empty-array"),
+            pytest.param(np.zeros((10, 1, 3), dtype=np.float64), id="wrong-width"),
+            pytest.param(np.zeros((10, 3, 3, 3), dtype=np.float64), id="4d-array"),
+            pytest.param(np.zeros((10, 18), dtype=np.float64), id="flat-array"),
+        ],
+    )
+    def test_raises_error_for_invalid_matrix_shape(
+        self,
+        data: npt.NDArray[np.float64],
+    ) -> None:
+        """Raises ValueError when input does not have shape (n_frames, 3, 3)."""
+
+        with pytest.raises(ValueError):
+            align_with_ISB_axes(data)
+
+    def test_raises_error_for_empty_data(self) -> None:
+        """Raises ValueError when no rotation matrices are provided."""
+
+        data = np.empty((0, 3, 3))
+
+        with pytest.raises(ValueError):
+            align_with_ISB_axes(data)
+
+    @pytest.mark.parametrize(
+        "axis_map",
+        [
+            # Missing axis
+            {
+                "x": ("z", 1),
+                "y": ("y", -1),
+            },
+            # Extra axis
+            {
+                "x": ("z", 1),
+                "y": ("y", -1),
+                "z": ("x", -1),
+                "w": ("x", 1),
+            },
+            # Duplicate ISB axis
+            {
+                "x": ("z", 1),
+                "y": ("z", -1),
+                "z": ("x", -1),
+            },
+            # Duplicate IMU axis represented by incorrect keys
+            {
+                "x": ("z", 1),
+                "y": ("y", -1),
+                "x2": ("x", -1),
+            },
+            # Invalid ISB axis
+            {
+                "x": ("z", 1),
+                "y": ("y", -1),
+                "z": ("w", -1),
+            },
+        ],
+    )
+    def test_raises_error_for_invalid_axis_map(
+        self,
+        axis_map: dict[str, tuple[str, int]],
+    ) -> None:
+        """Raises ValueError when the axis map does not define three unique axes."""
+
+        data = np.eye(3, dtype=np.float64)[np.newaxis, ...]
+
+        with pytest.raises(ValueError):
+            align_with_ISB_axes(data, axis_map=axis_map)
+
+    @pytest.mark.parametrize(
+        "rotation",
+        [
+            np.eye(3),
+            np.array(
+                [
+                    [1, 0, 0],
+                    [0, 0, -1],
+                    [0, 1, 0],
+                ],
+                dtype=np.float64,
+            ),
+            np.array(
+                [
+                    [0, 0, 1],
+                    [1, 0, 0],
+                    [0, 1, 0],
+                ],
+                dtype=np.float64,
+            ),
+        ],
+    )
+    def test_applies_correct_transformation(
+        self,
+        rotation: npt.NDArray[np.float64],
+    ) -> None:
+        """Applies the expected coordinate transformation to a rotation matrix."""
+
+        axis_map = {
+            "x": ("z", 1),
+            "y": ("y", -1),
+            "z": ("x", -1),
+        }
+
+        transform = np.array(
+            [
+                [0, 0, -1],
+                [0, -1, 0],
+                [1, 0, 0],
+            ],
+            dtype=np.float64,
+        )
+
+        expected = transform @ rotation @ transform.T
+
+        result = align_with_ISB_axes(
+            rotation[np.newaxis, ...],
+            axis_map=axis_map,
+        )
+
+        np.testing.assert_allclose(
+            result[0],
+            expected,
+        )
+
+    def test_applies_transformation_to_every_matrix_in_batch(self) -> None:
+        """Applies the transformation independently to every frame."""
+
+        matrices = np.array(
+            [
+                np.eye(3),
+                [
+                    [1, 0, 0],
+                    [0, 0, -1],
+                    [0, 1, 0],
+                ],
+                [
+                    [0, 1, 0],
+                    [-1, 0, 0],
+                    [0, 0, 1],
+                ],
+            ],
+            dtype=np.float64,
+        )
+
+        transform = np.array(
+            [
+                [0, 0, -1],
+                [0, -1, 0],
+                [1, 0, 0],
+            ],
+            dtype=np.float64,
+        )
+        axis_map = {
+            "x": ("z", 1),
+            "y": ("y", -1),
+            "z": ("x", -1),
+        }
+        expected = np.array(
+            [transform @ matrix @ transform.T for matrix in matrices]
+        )
+
+        result = align_with_ISB_axes(matrices, axis_map=axis_map)
+
+        np.testing.assert_allclose(result, expected)
 
 
 class TestValidateOrthonormAndDet:
@@ -295,7 +468,7 @@ class TestValidateOrthonormAndDet:
             pytest.param(R.from_euler("Y", np.pi / 5).as_matrix().reshape(1, 3, 3), id="y-rotation"),
             pytest.param(R.from_euler("Z", np.pi / 5).as_matrix().reshape(1, 3, 3), id="z-rotation"),
             pytest.param(R.from_euler("XYZ", [0.1, 0.2, 0.3]).as_matrix().reshape(1, 3, 3), id="xyz-rotation"),
-            pytest.param(R.from_euler("X", SMALL_ANGLE).as_matrix().reshape(1, 3, 3), id="small-angle-rotation"),
+            pytest.param(R.from_euler("X", SMALLEST_CLINICALLY_RELEVANT_ANGLE).as_matrix().reshape(1, 3, 3), id="small-angle-rotation"),
             pytest.param(R.from_euler("Y", np.pi / 2).as_matrix().reshape(1, 3, 3), id="90-degree-rotation"),
         ],
     )
@@ -346,8 +519,8 @@ class TestValidateOrthonormAndDet:
     @pytest.mark.parametrize(
         "angle",
         [
-            0.0 + SINGULARITY_TOLERANCE,
-            np.pi - SINGULARITY_TOLERANCE,
+            0.0 + TEST_SINGULARITY_TOLERANCE,
+            np.pi - TEST_SINGULARITY_TOLERANCE,
         ],
     )
     def test_should_handle_matrices_near_singularities(self, angle):
@@ -448,3 +621,37 @@ class TestCleanAndValidateData:
             result = clean_and_validate_data(raw_data) #type:ignore
 
         np.testing.assert_array_equal(result, cleaned_data)
+
+
+class TestProductionISBAlignment:   
+    def test_rotation_is_transformed_correctly(self) -> None:
+        rotation = np.array(
+            [
+                [0, 1, 0],
+                [0, 0, -1],
+                [-1, 0, 0],
+            ],
+            dtype=np.float64,
+        )
+
+        rotations = rotation[None, ...]
+
+        # Hard-coded expected result based on the defined
+        # IMU -> ISB axis relationships:
+        #   IMU +x -> ISB +z
+        #   IMU +y -> ISB -y
+        #   IMU +z -> ISB +x
+        expected = np.array(
+            [
+                [
+                    [0, 0, -1],
+                    [1, 0, 0],
+                    [0, -1, 0],
+                ]
+            ],
+            dtype=np.float64,
+        )
+
+        result = align_with_ISB_axes(rotations, AXIS_MAP)
+
+        np.testing.assert_allclose(result, expected)
