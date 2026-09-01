@@ -5,7 +5,7 @@ Author: Christopher Millward
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.transform import Rotation
-from config import ORTHONORMAL_TOLERANCE, DETERMINANT_TOLERANCE
+from config import ORTHONORMAL_TOLERANCE, DETERMINANT_TOLERANCE, AXIS_MAP
 
 # ---- Functions ----
 def get_correction_matrix(
@@ -57,7 +57,7 @@ def apply_imu_calibration(
     if data.ndim != 3 or data.shape[1:] != (3, 3):
         raise ValueError("data must have shape (n_frames, 3, 3)")
 
-    # Ensure data is not empty
+    # ensure data is not empty
     if data.shape[0] == 0:
         raise ValueError("data must contain at least one frame")
     
@@ -73,6 +73,54 @@ def apply_imu_calibration(
 
     # Apply correction to every frame
     return R_correction @ data  # NOTE: This order matters!! Don't rearrange!!
+
+
+def align_with_ISB_axes(
+    data: np.ndarray,
+    axis_map: dict[str, tuple[str, int]] = AXIS_MAP
+    ) -> np.ndarray:
+    """
+    Align a batch of rotation matrices with the ISB coordinate system.
+
+    Args:
+        data (np.ndarray): A 3D array of shape (n_frames, 3, 3) representing the rotation matrices for each frame.
+        axis_map (dict[str, tuple[str, int]]): A dictionary mapping IMU axis names to their corresponding ISB axis names and signs.
+
+    Returns:
+        np.ndarray: The data with the axes aligned to the ISB coordinate system.
+    """
+    # ensure data is not empty
+    if data.ndim != 3 or data.shape[1:] != (3, 3):
+        raise ValueError(
+            "data must have shape (n_frames, 3, 3)"
+        )
+
+    # ensure data is not empty  
+    if data.shape[0] == 0:
+        raise ValueError("data cannot be empty")
+
+    # ensure axis_map is valid
+    if set(axis_map) != {"x", "y", "z"}:
+        raise ValueError("axis_map must contain exactly x, y, and z")
+
+    isb_axes = [axis for axis, _ in axis_map.values()]
+
+    if set(isb_axes) != {"x", "y", "z"} or len(isb_axes) != len(set(isb_axes)):
+        raise ValueError(
+            "axis_map must map to each ISB axis exactly once"
+        )
+
+    # Build the coordinate transformation matrix.
+    transform = np.zeros((3, 3), dtype=np.float64)
+
+    # Define the mapping of axis names to transform indices
+    axis_indices = {"x": 0, "y": 1, "z": 2}
+
+    for imu_axis, (isb_axis, sign) in axis_map.items():
+        transform[axis_indices[isb_axis], axis_indices[imu_axis]] = sign
+
+    # Apply the transformation to every rotation matrix.
+    return transform @ data @ transform.T
 
 
 def validate_orthonorm_and_det(matrices: npt.NDArray[np.float64]) -> None:
