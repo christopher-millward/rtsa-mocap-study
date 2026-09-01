@@ -617,17 +617,16 @@ def _populate_heatmap(
 
 def calculate_bin_rotations(
     data: npt.NDArray[np.float64],
-    arm: Literal['left', 'right'],
     participant_idx: int,
 ) -> Heatmap:   
     """
     Calculate the cumulative motion for each bin in the heatmap for a given arm.
     """
     # validate incoming data
-    data_array = _validate_rotation_data(data)
+    valid_data = _validate_rotation_data(data)
 
     # calculate relative motion
-    relative_matrices, postural_angles = _create_relative_matrices_and_postural_angles(data_array, arm)
+    relative_matrices, postural_angles = _create_relative_matrices_and_postural_angles(valid_data)
 
     # Initialize heatmap object
     heatmap = Heatmap()
