@@ -252,7 +252,7 @@ def plot_heatmap(
         cmap=palette,
         xticklabels=x,
         yticklabels=y,
-        cbar_kws={"label": r"Mean Rotation ($\times 10^2$)"},
+        cbar_kws={"label": r"Mean Rotation (rad) $\times 10^2$"},
         ax=ax,
     )
 
@@ -261,7 +261,7 @@ def plot_heatmap(
     ax.set_ylabel("Elevation (deg)")
     if titles:
         ax.set_title(
-            f"Mean (SD) of {motion_type.capitalize()} Rotation "
+            f"Mean (SD) {motion_type.capitalize()} Rotation Observed in RTSA Shoulders "
             f"in Each Range of Elevation and Plane of Elevation"
         )
 
