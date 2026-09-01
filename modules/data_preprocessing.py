@@ -56,6 +56,10 @@ def apply_axis_orientation_correction(
     if data.ndim != 3 or data.shape[1:] != (3, 3):
         raise ValueError("data must have shape (n_frames, 3, 3)")
 
+    # Ensure data is not empty
+    if data.shape[0] == 0:
+        raise ValueError("data must contain at least one frame")
+    
     # ensure n_frames is not greater than the number of frames in data
     if n_frames > data.shape[0]:    
         raise ValueError("n_frames must not be greater than the number of frames in data")  
