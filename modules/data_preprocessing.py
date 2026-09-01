@@ -128,6 +128,7 @@ def clean_and_validate_data(raw_data: npt.NDArray[np.float64]) -> npt.NDArray[np
     """
     Clean a batch of arm rotation matrices for analysis. 
     Tasks:
+        - Ensure all values are of type float64.
         - Perform axis alignment to the ISB coordinate system.
         - Validate that the resulting matrices are proper rotation matrices.
 
