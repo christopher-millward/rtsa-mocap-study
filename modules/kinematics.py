@@ -197,8 +197,7 @@ def _compute_incremental_rotation_matrices(
 
 
 def _create_relative_matrices_and_postural_angles(
-    data: npt.NDArray[np.float64],
-    arm: Literal["left", "right"],
+    data: npt.NDArray[np.float64]
 ) -> tuple[
     npt.NDArray[np.float64],
     PosturalAngles,
@@ -207,21 +206,19 @@ def _create_relative_matrices_and_postural_angles(
     Calculate relative rotations and postural angles.
 
     Args:
-        data (npt.NDArray[np.float64]): Flattened rotation matrices with shape (n_frames, 18).
-        arm (Literal["left", "right"]): Arm to process.
+        data (npt.NDArray[np.float64]): Array of rotation matrices with shape (n_frames, 3, 3).
 
     Returns:
         tuple[npt.NDArray[np.float64], PosturalAngles]: A tuple containing:
             - Relative rotation matrices
             - Normalized postural angles
     """
-    matrices = create_rotation_matrices(data, arm)
 
-    postural_angles = _get_postural_angles(matrices)
+    postural_angles = _get_postural_angles(data)
     postural_angles = _normalize_postural_angles(postural_angles)
 
     relative_matrices = _compute_incremental_rotation_matrices(
-        matrices
+        data
     )
 
     return relative_matrices, postural_angles

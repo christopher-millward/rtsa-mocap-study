@@ -466,109 +466,91 @@ class TestValidateRotationData:
 #         assert deltas.dtype == np.float64
 
 
-# class TestCreateRelativeMatricesAndPosturalAngles:
-#     """Tests for _create_relative_matrices_and_postural_angles."""
+class TestCreateRelativeMatricesAndPosturalAngles:
+    """Tests for _create_relative_matrices_and_postural_angles."""
 
-#     @pytest.fixture
-#     def data(self) -> np.ndarray:
-#         """Create valid input data."""
-#         rng = np.random.default_rng(42)
-#         return rng.random((10, 18))
+    @pytest.fixture
+    def data(self) -> np.ndarray:
+        """Create valid input data."""
+        rng = np.random.default_rng(42)
+        return rng.random((10, 3, 3), dtype=np.float64)
 
-#     @pytest.fixture
-#     def matrices(self) -> np.ndarray:
-#         """Mock rotation matrices."""
-#         rng = np.random.default_rng(1)
-#         return rng.random((10, 3, 3))
+    @pytest.fixture
+    def postural_angles(self) -> MagicMock:
+        """Mock PosturalAngles object."""
+        return MagicMock(spec=PosturalAngles)
 
-#     @pytest.fixture
-#     def postural_angles(self) -> MagicMock:
-#         """Mock PosturalAngles object."""
-#         return MagicMock(spec=PosturalAngles)
+    @pytest.fixture
+    def normalized_postural_angles(self) -> MagicMock:
+        """Mock normalized PosturalAngles object."""
+        return MagicMock(spec=PosturalAngles)
 
-#     @pytest.fixture
-#     def normalized_postural_angles(self) -> MagicMock:
-#         """Mock normalized PosturalAngles object."""
-#         return MagicMock(spec=PosturalAngles)
+    @pytest.fixture
+    def relative_matrices(self) -> np.ndarray:
+        """Mock relative rotation matrices."""
+        rng = np.random.default_rng(2)
+        return rng.random((10, 3, 3))
 
-#     @pytest.fixture
-#     def relative_matrices(self) -> np.ndarray:
-#         """Mock relative rotation matrices."""
-#         rng = np.random.default_rng(2)
-#         return rng.random((10, 3, 3))
+    def test_calls_dependencies_once_and_returns_expected_values(
+        self,
+        mocker,
+        data,
+        postural_angles,
+        normalized_postural_angles,
+        relative_matrices,
+    ):
+        """Calls each dependency exactly once and returns their outputs."""
+        get_angles = mocker.patch(
+            "modules.kinematics._get_postural_angles",
+            return_value=postural_angles,
+        )
+        normalize = mocker.patch(
+            "modules.kinematics._normalize_postural_angles",
+            return_value=normalized_postural_angles,
+        )
+        compute = mocker.patch(
+            "modules.kinematics._compute_incremental_rotation_matrices",
+            return_value=relative_matrices,
+        )
 
-#     def test_calls_dependencies_once_and_returns_expected_values(
-#         self,
-#         mocker,
-#         data,
-#         matrices,
-#         postural_angles,
-#         normalized_postural_angles,
-#         relative_matrices,
-#     ):
-#         """Calls each dependency exactly once and returns their outputs."""
-#         create = mocker.patch(
-#             "modules.kinematics.create_rotation_matrices",
-#             return_value=matrices,
-#         )
-#         get_angles = mocker.patch(
-#             "modules.kinematics._get_postural_angles",
-#             return_value=postural_angles,
-#         )
-#         normalize = mocker.patch(
-#             "modules.kinematics._normalize_postural_angles",
-#             return_value=normalized_postural_angles,
-#         )
-#         compute = mocker.patch(
-#             "modules.kinematics._compute_incremental_rotation_matrices",
-#             return_value=relative_matrices,
-#         )
+        result_matrices, result_angles = _create_relative_matrices_and_postural_angles(
+            data
+        )
 
-#         result_matrices, result_angles = _create_relative_matrices_and_postural_angles(
-#             data,
-#             "left",
-#         )
+        get_angles.assert_called_once_with(data)
+        normalize.assert_called_once_with(postural_angles)
+        compute.assert_called_once_with(data)
 
-#         create.assert_called_once_with(data, "left")
-#         get_angles.assert_called_once_with(matrices)
-#         normalize.assert_called_once_with(postural_angles)
-#         compute.assert_called_once_with(matrices)
+        assert result_matrices is relative_matrices
+        assert result_angles is normalized_postural_angles
 
-#         assert result_matrices is relative_matrices
-#         assert result_angles is normalized_postural_angles
+    def test_does_not_modify_input_data(
+        self,
+        mocker,
+        data,
+        postural_angles,
+        normalized_postural_angles,
+        relative_matrices,
+    ) -> None:
+        """Does not modify the input data."""
+        original = data.copy()
 
-#     def test_does_not_modify_input_data(
-#         self,
-#         mocker,
-#         data,
-#         matrices,
-#         postural_angles,
-#         normalized_postural_angles,
-#         relative_matrices,
-#     ) -> None:
-#         """Does not modify the input data."""
-#         original = data.copy()
+        mocker.patch(
+            "modules.kinematics._get_postural_angles",
+            return_value=postural_angles,
+        )
+        mocker.patch(
+            "modules.kinematics._normalize_postural_angles",
+            return_value=normalized_postural_angles,
+        )
+        mocker.patch(
+            "modules.kinematics._compute_incremental_rotation_matrices",
+            return_value=relative_matrices,
+        )
 
-#         mocker.patch(
-#             "modules.kinematics.create_rotation_matrices",
-#             return_value=matrices,
-#         )
-#         mocker.patch(
-#             "modules.kinematics._get_postural_angles",
-#             return_value=postural_angles,
-#         )
-#         mocker.patch(
-#             "modules.kinematics._normalize_postural_angles",
-#             return_value=normalized_postural_angles,
-#         )
-#         mocker.patch(
-#             "modules.kinematics._compute_incremental_rotation_matrices",
-#             return_value=relative_matrices,
-#         )
+        _create_relative_matrices_and_postural_angles(data)
 
-#         _create_relative_matrices_and_postural_angles(data, "left")
-
-#         np.testing.assert_array_equal(data, original)
+        np.testing.assert_array_equal(data, original)
 
 
 # class TestGenerateHeatmapBins:
