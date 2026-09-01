@@ -10,7 +10,6 @@ import numpy.typing as npt
 from typing import Literal, Tuple, Iterator
 from scipy.spatial.transform import Rotation as R
 from schema import Heatmap
-from modules.general_utilities import create_rotation_matrices
 from modules.data_preprocessing import validate_orthonorm_and_det
 from modules.progress_bar import get_pbar_manager
 
