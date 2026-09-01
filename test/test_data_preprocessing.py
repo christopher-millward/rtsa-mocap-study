@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from modules.data_preprocessing import (
-    apply_axis_orientation_correction,
+    apply_imu_calibration,
     clean_and_validate_data,
     get_correction_matrix,
     validate_orthonorm_and_det,
@@ -135,7 +135,7 @@ class TestApplyAxisOrientationCorrection:
             ValueError,
             match=r"data must have shape \(n_frames, 3, 3\)",
         ):
-            apply_axis_orientation_correction(data, n_frames=0)
+            apply_imu_calibration(data, n_frames=0)
 
     @pytest.mark.parametrize(
         "data",
@@ -148,12 +148,12 @@ class TestApplyAxisOrientationCorrection:
             ValueError,
             match="data must contain at least one frame",
         ):
-            apply_axis_orientation_correction(data, n_frames=0)
+            apply_imu_calibration(data, n_frames=0)
 
     def test_should_reject_n_frames_larger_than_data_length(self):
         data = np.tile(np.eye(3, dtype=np.float64), (3, 1, 1))
         with pytest.raises(ValueError, match="n_frames must not be greater than the number of frames in data"):
-            apply_axis_orientation_correction(data, n_frames=4)
+            apply_imu_calibration(data, n_frames=4)
 
     def test_should_calculate_average_humerus_direction_using_first_n_frames(self):
         data = np.stack(
@@ -170,7 +170,7 @@ class TestApplyAxisOrientationCorrection:
             "modules.data_preprocessing.get_correction_matrix", 
             return_value=np.eye(3, dtype=np.float64)
         ) as mock_get_correction_matrix:
-            apply_axis_orientation_correction(data, n_frames=2, target=target)
+            apply_imu_calibration(data, n_frames=2, target=target)
 
         expected_avg = data[:2].mean(axis=0)
         mock_get_correction_matrix.assert_called_once()
@@ -188,7 +188,7 @@ class TestApplyAxisOrientationCorrection:
     )
     def test_should_reject_non_finite_numeric_values(self, data):
         with pytest.raises(ValueError):
-            apply_axis_orientation_correction(data)
+            apply_imu_calibration(data)
 
     @pytest.mark.parametrize(
         "data",
@@ -199,7 +199,7 @@ class TestApplyAxisOrientationCorrection:
     )
     def test_should_reject_non_numeric_values(self, data):
         with pytest.raises((TypeError, ValueError)):
-            apply_axis_orientation_correction(data)
+            apply_imu_calibration(data)
 
     def test_should_apply_correction_matrix_to_every_frame(self):
         data = np.stack(
@@ -213,7 +213,7 @@ class TestApplyAxisOrientationCorrection:
         correction = R.from_euler("Z", np.pi / 2.0).as_matrix()
 
         with patch("modules.data_preprocessing.get_correction_matrix", return_value=correction):
-            result = apply_axis_orientation_correction(data, n_frames=data.shape[0])
+            result = apply_imu_calibration(data, n_frames=data.shape[0])
 
         expected = correction @ data
         assert np.allclose(result, expected)
@@ -228,7 +228,7 @@ class TestApplyAxisOrientationCorrection:
             axis=0,
         )
 
-        result = apply_axis_orientation_correction(data, n_frames=2)
+        result = apply_imu_calibration(data, n_frames=2)
 
         assert result.shape == data.shape
         _ensure_valid_R_matrices(result)
@@ -237,7 +237,7 @@ class TestApplyAxisOrientationCorrection:
     def test_should_remain_stable_for_rotations_close_to_identity(self, angle):
         data = np.tile(R.from_euler("X", angle).as_matrix(), (5, 1, 1))
 
-        result = apply_axis_orientation_correction(data, n_frames=data.shape[0])
+        result = apply_imu_calibration(data, n_frames=data.shape[0])
 
         assert result.shape == data.shape
         _ensure_valid_R_matrices(result)
@@ -252,7 +252,7 @@ class TestApplyAxisOrientationCorrection:
     def test_should_handle_matrices_near_singularities(self, angle):
         data = np.tile(R.from_euler("Y", angle).as_matrix(), (5, 1, 1))
 
-        result = apply_axis_orientation_correction(data, n_frames=data.shape[0])
+        result = apply_imu_calibration(data, n_frames=data.shape[0])
 
         assert result.shape == data.shape
         _ensure_valid_R_matrices(result)
@@ -369,7 +369,7 @@ class TestCleanAndValidateData:
         )
 
         with patch(
-            "modules.data_preprocessing.apply_axis_orientation_correction",
+            "modules.data_preprocessing.apply_imu_calibration",
             return_value=raw_data.astype(np.float64),
         ) as mock_apply:
             clean_and_validate_data(raw_data) #type:ignore
@@ -379,10 +379,11 @@ class TestCleanAndValidateData:
         assert actual_data.dtype == np.float64
         np.testing.assert_array_equal(actual_data, raw_data.astype(np.float64))
 
-    def test_should_call_apply_axis_orientation_correction_with_coerced_data(
+
+    def test_should_call_apply_imu_calibration_with_coerced_data(
         self
     ):
-        """Should pass coerced float64 data to axis correction."""
+        """Should pass coerced float64 data to imu calibration."""
         raw_data = np.array(
             [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
             dtype=np.float32,
@@ -391,7 +392,7 @@ class TestCleanAndValidateData:
         corrected_data = np.ones((1, 3, 3), dtype=np.float64)
 
         with patch(
-            "modules.data_preprocessing.apply_axis_orientation_correction",
+            "modules.data_preprocessing.apply_imu_calibration",
             return_value=corrected_data,
         ) as mock_apply, patch(
             "modules.data_preprocessing.validate_orthonorm_and_det",
@@ -416,7 +417,7 @@ class TestCleanAndValidateData:
         )
 
         with patch(
-            "modules.data_preprocessing.apply_axis_orientation_correction",
+            "modules.data_preprocessing.apply_imu_calibration",
             return_value=cleaned_data,
         ), patch(
             "modules.data_preprocessing.validate_orthonorm_and_det",
@@ -428,7 +429,7 @@ class TestCleanAndValidateData:
         np.testing.assert_array_equal(actual_data, cleaned_data)
 
     def test_should_return_cleaned_data(self):
-        """Should return the data produced by axis correction."""
+        """Should return the data produced by imu calibration."""
         raw_data = np.array(
             [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
             dtype=np.float32,
@@ -439,7 +440,7 @@ class TestCleanAndValidateData:
         )
 
         with patch(
-            "modules.data_preprocessing.apply_axis_orientation_correction",
+            "modules.data_preprocessing.apply_imu_calibration",
             return_value=cleaned_data,
         ), patch(
             "modules.data_preprocessing.validate_orthonorm_and_det",

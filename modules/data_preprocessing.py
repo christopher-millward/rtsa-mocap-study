@@ -34,20 +34,21 @@ def get_correction_matrix(
     return rot.as_matrix()
 
 
-def apply_axis_orientation_correction(
+def apply_imu_calibration(
     data: np.ndarray, 
     n_frames: int = 20,
     target: np.ndarray = np.array([[1, 0, 0],[0, 1, 0],[0, 0, 1]])
 ) -> np.ndarray:
     """
-    Apply axis orientation correction to the given data.
+    Apply a correction matrix to a batch of rotation matrices based on the 
+    imu-measured orientation of the humerus during the first n_frames and
+    the known clinical orientation (calibration position).
 
-    This function applies a correction matrix to the input data to align it with the specified target orientation.
 
     Args:
         data (np.ndarray): A 3D array of shape (n_frames, 3, 3) representing the rotation matrices for each frame.
-        n_frames (int): The number of frames to use for calculating the average humerus direction.
-        target (np.ndarray): The target orientation to align the data with.
+        n_frames (int): The number of frames to use for calculating the average humerus direction. Default is 20.
+        target (np.ndarray): The target orientation to align the data with. Default is the identity matrix (origin axes).
 
     Returns:
         np.ndarray: The corrected data in the form of a 3D array of shape (n_frames, 3, 3) after applying the correction matrix.
@@ -145,7 +146,7 @@ def clean_and_validate_data(raw_data: npt.NDArray[np.float64]) -> npt.NDArray[np
     data = np.asarray(raw_data, dtype=np.float64)
 
     # align axes with ISB CS
-    clean_data = apply_axis_orientation_correction(data)
+    clean_data = apply_imu_calibration(data)
 
     # validate orthonormality and determinant
     validate_orthonorm_and_det(clean_data)
