@@ -28,11 +28,14 @@ sns.set_theme(
 fig_size = (7.16, 5.0)  # 1 column width in inches
 palette = "cividis"  # color palette for plots
 dpi = 600  # dots per inch for the plots
-
+transparent = False  # whether to save plots with transparent background
+titles = True
 
 # -------------------------------------------------------------------
 # Helper Functions
 # -------------------------------------------------------------------
+
+
 def _stack_heatmaps(
     data: list[ParticipantDetails],
     side: Literal["operated", "non_operated"],
@@ -69,9 +72,11 @@ def _stack_heatmaps(
 def plot_raincloud(
         data: list[ParticipantDetails],
         out_path: Path,
-        fig_size=fig_size,
-        palette=palette,
-        dpi: int = 600
+        fig_size: tuple[float, float] = fig_size,
+        palette: str = palette,
+        transparent: bool = transparent,
+        dpi: int = 600,
+        titles: bool = titles
 
 ) -> None:
     """Plot a raincloud plot of the cumulative totals.
@@ -138,10 +143,11 @@ def plot_raincloud(
 
     ax.set_xlabel("Cumulative Humerothoracic Rotation (rad)")
     ax.set_ylabel("Arm")
-    # ax.set_title(
-    #     "Distribution of Cumulative Humerothoracic Rotation "
-    #     "in Operated vs. Non-Operated Sides"
-    # )
+    if titles:
+        ax.set_title(
+            "Distribution of Cumulative Humerothoracic Rotation "
+            "in Operated vs. Non-Operated Sides"
+        )
 
     # Annotate p-value
     annotation_x_pos = 2.2e4
@@ -182,7 +188,8 @@ def plot_raincloud(
         fontsize=8,
     )
 
-    plt.savefig(out_path, dpi=dpi, bbox_inches="tight", transparent=True)
+    plt.savefig(out_path, dpi=dpi, bbox_inches="tight",
+                transparent=transparent)
 
 
 def plot_heatmap(
@@ -191,9 +198,11 @@ def plot_heatmap(
     value: Literal["cumulative_motion", "elevation", "POE", "IR_ER"],
     motion_type: Literal["humerothoracic", "glenohumeral"],
     out_path: Path,
-    fig_size: tuple = fig_size,
+    fig_size: tuple[float, float] = fig_size,
     palette: str = palette,
-    dpi: int = dpi
+    transparent: bool = transparent,
+    dpi: int = dpi,
+    titles: bool = titles
 ) -> None:
 
     # Prep the data
@@ -204,11 +213,11 @@ def plot_heatmap(
         motion_type=motion_type
     )
     mean_heatmap = np.mean(stacked_heatmaps, axis=0)
-    std_heatmap = np.std(stacked_heatmaps, axis=0, ddof=1)  # Use ddof=1 for sample standard deviation
-
+    # Use ddof=1 for sample standard deviation
+    std_heatmap = np.std(stacked_heatmaps, axis=0, ddof=1)
 
     # plot the heatmap with mean and std
-    root_heatmap =getattr(getattr(data[0], side)[0], motion_type).heatmap
+    root_heatmap = getattr(getattr(data[0], side)[0], motion_type).heatmap
     x_min = 0
     x_max = root_heatmap.poe_range_end
     y_min = 0
@@ -250,18 +259,22 @@ def plot_heatmap(
     ax.invert_yaxis()
     ax.set_xlabel("Plane of Elevation (deg)")
     ax.set_ylabel("Elevation (deg)")
-    # ax.set_title(
-    #     "Mean (SD) of Cumulative Humerothoracic Rotation "
-    #     "in Each Range of Elevation and Plane of Elevation"
-    # )
+    if titles:
+        ax.set_title(
+            f"Mean (SD) of {motion_type.capitalize()} Rotation "
+            f"in Each Range of Elevation and Plane of Elevation"
+        )
 
-    plt.savefig(out_path, dpi=dpi, bbox_inches="tight", transparent=True)
+    plt.savefig(out_path, dpi=dpi, bbox_inches="tight",
+                transparent=transparent)
 
 
 def create_and_save_all_figures(
     data: list[ParticipantDetails],
-    fig_size=fig_size,
-    palette=palette,
+    fig_size: tuple[float, float] = fig_size,
+    palette: str = palette,
+    transparent: bool = transparent,
+    titles: bool = titles,
     dpi=dpi
 ):
     """Plot all figures for the statistics pipeline.
@@ -277,7 +290,9 @@ def create_and_save_all_figures(
         out_path=CUMULATIVE_MOTION_RAINCLOUD_PATH,
         fig_size=fig_size,
         palette=palette,
-        dpi=dpi
+        transparent=transparent,
+        dpi=dpi,
+        titles=titles
     )
 
     plot_heatmap(
@@ -288,5 +303,7 @@ def create_and_save_all_figures(
         out_path=OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH,
         fig_size=fig_size,
         palette=palette,
-        dpi=dpi
+        transparent=transparent,
+        dpi=dpi,
+        titles=titles
     )
