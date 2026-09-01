@@ -44,7 +44,7 @@ def main():
             cleaned_data = clean_and_validate_data(data)
 
             # run kinematics
-            kinematics = calculate_bin_rotations(cleaned_data, side, i)
+            kinematics = calculate_bin_rotations(cleaned_data, i)
 
             # save kinematics data
             arm = getattr(participant_details[i], side)
