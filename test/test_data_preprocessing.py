@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation as R
 
 from modules.data_preprocessing import (
     apply_axis_orientation_correction,
+    clean_and_validate_data,
     get_correction_matrix,
     validate_orthonorm_and_det,
 )
@@ -355,3 +356,94 @@ class TestValidateOrthonormAndDet:
             validate_orthonorm_and_det(matrix)
         except ValueError:
             pytest.fail("validate_orthonorm_and_det raised ValueError unexpectedly for a valid rotation matrix near a singularity.")
+
+
+class TestCleanAndValidateData:
+    """Tests for clean_and_validate_data."""
+
+    def test_should_coerce_input_to_float64(self):
+        """Should pass float64 data to the axis correction function."""
+        raw_data = np.array(
+            [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+            dtype=np.float32,
+        )
+
+        with patch(
+            "modules.data_preprocessing.apply_axis_orientation_correction",
+            return_value=raw_data.astype(np.float64),
+        ) as mock_apply:
+            clean_and_validate_data(raw_data) #type:ignore
+
+        mock_apply.assert_called_once()
+        actual_data = mock_apply.call_args.args[0]
+        assert actual_data.dtype == np.float64
+        np.testing.assert_array_equal(actual_data, raw_data.astype(np.float64))
+
+    def test_should_call_apply_axis_orientation_correction_with_coerced_data(
+        self
+    ):
+        """Should pass coerced float64 data to axis correction."""
+        raw_data = np.array(
+            [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+            dtype=np.float32,
+        )
+        expected_data = raw_data.astype(np.float64)
+        corrected_data = np.ones((1, 3, 3), dtype=np.float64)
+
+        with patch(
+            "modules.data_preprocessing.apply_axis_orientation_correction",
+            return_value=corrected_data,
+        ) as mock_apply, patch(
+            "modules.data_preprocessing.validate_orthonorm_and_det",
+        ):
+            clean_and_validate_data(raw_data)#type:ignore
+
+        mock_apply.assert_called_once()
+
+        actual_data = mock_apply.call_args.args[0]
+
+        np.testing.assert_array_equal(actual_data, expected_data)
+
+    def test_should_call_validate_with_cleaned_data(self):
+        """Should validate the data returned by axis correction."""
+        raw_data = np.array(
+            [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+            dtype=np.float32,
+        )
+        cleaned_data = np.array(
+            [[[0, 1, 0], [1, 0, 0], [0, 0, 1]]],
+            dtype=np.float64,
+        )
+
+        with patch(
+            "modules.data_preprocessing.apply_axis_orientation_correction",
+            return_value=cleaned_data,
+        ), patch(
+            "modules.data_preprocessing.validate_orthonorm_and_det",
+        ) as mock_validate:
+            clean_and_validate_data(raw_data)#type:ignore
+
+        mock_validate.assert_called_once()
+        actual_data = mock_validate.call_args.args[0]
+        np.testing.assert_array_equal(actual_data, cleaned_data)
+
+    def test_should_return_cleaned_data(self):
+        """Should return the data produced by axis correction."""
+        raw_data = np.array(
+            [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+            dtype=np.float32,
+        )
+        cleaned_data = np.array(
+            [[[0, 1, 0], [1, 0, 0], [0, 0, 1]]],
+            dtype=np.float64,
+        )
+
+        with patch(
+            "modules.data_preprocessing.apply_axis_orientation_correction",
+            return_value=cleaned_data,
+        ), patch(
+            "modules.data_preprocessing.validate_orthonorm_and_det",
+        ):
+            result = clean_and_validate_data(raw_data) #type:ignore
+
+        np.testing.assert_array_equal(result, cleaned_data)
