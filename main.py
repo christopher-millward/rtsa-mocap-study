@@ -4,7 +4,7 @@ Author: Christopher Millward
 """
 from pathlib import Path
 from typing_extensions import Literal, cast
-from modules.general_utilities import create_rotation_matrices
+from modules.general_utilities import convert_all_heatmaps_to_degrees, create_rotation_matrices
 from modules.kinematics import calculate_bin_rotations
 from modules.data_loading import load_participant_details, load_motion_capture_data
 from modules.data_preprocessing import clean_and_validate_data
@@ -19,13 +19,15 @@ def main():
     """This function orchestrates the entire analysis pipeline."""
 
     # Load participant details from the Excel file
-    participant_details = load_participant_details(RAW_PARTICIPANT_DETAILS_PATH)
+    participant_details = load_participant_details(
+        RAW_PARTICIPANT_DETAILS_PATH)
 
     # remove all files with no RTSA
-    participant_details = [participant for participant in participant_details if participant.rtsa_side is not None]
+    participant_details = [
+        participant for participant in participant_details if participant.rtsa_side is not None]
 
     # Set up progress bar
-    initialize_pbar(participant_details) 
+    initialize_pbar(participant_details)
 
     # For each participant
     for i, participant in enumerate(participant_details):
@@ -54,7 +56,10 @@ def main():
         # update progress bar
         get_pbar_manager().update_outer()
 
-    # Save data 
+    # Convert kinematics data from radians to degrees for stats and plotting
+    participant_details = convert_all_heatmaps_to_degrees(participant_details)
+
+    # Save data
     save_data_to_pickle(participant_details, Path(RESULTS_PICKLE_PATH))
 
     # Run and save statistics
@@ -63,6 +68,7 @@ def main():
 
     # Close progress bar
     get_pbar_manager().close()
+
 
 if __name__ == "__main__":
     main()
