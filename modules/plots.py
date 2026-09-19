@@ -13,7 +13,7 @@ import seaborn as sns
 import numpy as np
 from typing import Literal
 
-from config import CUMULATIVE_MOTION_RAINCLOUD_PATH, OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH
+from config import CUMULATIVE_MOTION_RAINCLOUD_PATH, OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH, RESULTS_PICKLE_PATH
 from modules.statistics import get_only_one_sided_participants, create_cumulative_totals_dataframe
 from schema import ParticipantDetails
 
@@ -307,3 +307,19 @@ def create_and_save_all_figures(
         dpi=dpi,
         titles=titles
     )
+
+
+# -------------------------------------------------------------------
+# main() runner to re-plot all figures if this module is run directly
+# -------------------------------------------------------------------
+def main():
+    """Re-plot all figures if this module is run directly."""
+    # Load data from pickle
+    data = pd.read_pickle(Path(RESULTS_PICKLE_PATH))
+
+    # Create and save all figures
+    create_and_save_all_figures(data)
+
+
+if __name__ == "__main__":
+    main()
