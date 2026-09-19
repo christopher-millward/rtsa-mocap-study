@@ -2,8 +2,6 @@
 
 Author: Christopher Millward
 """
-from typing import List
-import copy
 import numpy as np
 import numpy.typing as npt
 from schema import Heatmap, ParticipantDetails
