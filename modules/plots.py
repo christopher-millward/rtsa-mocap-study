@@ -141,7 +141,7 @@ def plot_raincloud(
     ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.2e}"))
     ax.set_xlim(left=5e3)  # I manually set this after seeing the plot.
 
-    ax.set_xlabel("Cumulative Humerothoracic Rotation (rad)")
+    ax.set_xlabel("Cumulative Humerothoracic Rotation (degrees)")
     ax.set_ylabel("Arm")
     if titles:
         ax.set_title(
@@ -252,7 +252,7 @@ def plot_heatmap(
         cmap=palette,
         xticklabels=x,
         yticklabels=y,
-        cbar_kws={"label": r"Mean Rotation (rad) $\times 10^2$"},
+        cbar_kws={"label": r"Mean Rotation (degrees) $\times 10^2$"},
         ax=ax,
     )
 
