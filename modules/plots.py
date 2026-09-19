@@ -138,8 +138,8 @@ def plot_raincloud(
         ax=ax,
     )
 
-    ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.2e}"))
-    ax.set_xlim(left=5e3)  # I manually set this after seeing the plot.
+    ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.1e}"))
+    # ax.set_xlim(left=2e6)  # I manually set this after seeing the plot.
 
     ax.set_xlabel("Cumulative Humerothoracic Rotation (degrees)")
     ax.set_ylabel("Arm")
@@ -150,7 +150,8 @@ def plot_raincloud(
         )
 
     # Annotate p-value
-    annotation_x_pos = 2.2e4
+    # annotation_x_pos = 1.6e6
+    annotation_x_pos = df_long["total"].max()
     x_min = 5e3
     x_range = annotation_x_pos - x_min
     x_bracket = annotation_x_pos + 0.05 * x_range
@@ -229,8 +230,8 @@ def plot_heatmap(
     y = np.arange(y_min, y_max, step)
 
     # Scale values by 10^2 for display
-    mean_scaled = mean_heatmap / 100
-    std_scaled = std_heatmap / 100
+    mean_scaled = mean_heatmap / 1000
+    std_scaled = std_heatmap / 1000
 
     # Create annotation strings: "mean (std)"
     annotations = np.empty(mean_heatmap.shape, dtype=object)
@@ -243,22 +244,24 @@ def plot_heatmap(
             )
 
     # Create heatmap
-    fig, ax = plt.subplots(figsize=tuple(x*1.4 for x in fig_size))
+    fig, ax = plt.subplots(figsize=fig_size)
 
     sns.heatmap(
         mean_scaled,
         annot=annotations,
+        annot_kws={"fontsize": 8},
         fmt="",
         cmap=palette,
         xticklabels=x,
         yticklabels=y,
-        cbar_kws={"label": r"Mean Rotation (degrees) $\times 10^2$"},
+        cbar_kws={"label": r"Mean Rotation (degrees) $\times 10^3$"},
         ax=ax,
     )
 
     ax.invert_yaxis()
     ax.set_xlabel("Plane of Elevation (deg)")
     ax.set_ylabel("Elevation (deg)")
+    plt.tight_layout()
     if titles:
         ax.set_title(
             f"Mean (SD) {motion_type.capitalize()} Rotation Observed in RTSA Shoulders "
