@@ -80,6 +80,11 @@ def convert_all_heatmaps_to_degrees(
 ) -> list[ParticipantDetails]:
     """Convert all kinematics heatmaps from radians to degrees in place.
 
+    NOTE:   At this time, the function only modified the humerothoracic heatmap 
+            for each arm. If additional heatmaps are added to the 
+            ParticipantDetails schema, this function will need to be updated 
+            accordingly.
+
     Args:
         participant_details: Participant data containing heatmaps in radians.
 
