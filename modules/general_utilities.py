@@ -2,10 +2,11 @@
 
 Author: Christopher Millward
 """
+from typing import List
+import copy
 import numpy as np
 import numpy.typing as npt
-
-from schema import Heatmap
+from schema import Heatmap, ParticipantDetails
 
 
 def create_rotation_matrices(
@@ -72,3 +73,24 @@ def convert_heatmap_to_degrees(heatmap: Heatmap) -> Heatmap:
     )
 
     return deg_heatmap
+
+
+def convert_all_heatmaps_to_degrees(
+    participant_details: list[ParticipantDetails],
+) -> list[ParticipantDetails]:
+    """Convert all kinematics heatmaps from radians to degrees in place.
+
+    Args:
+        participant_details: Participant data containing heatmaps in radians.
+
+    Returns:
+        The same ParticipantDetails objects, with heatmaps converted to degrees.
+    """
+    for participant in participant_details:
+        for side in ["left", "right"]:
+            arm = getattr(participant, side)
+            arm.humerothoracic.heatmap = convert_heatmap_to_degrees(
+                arm.humerothoracic.heatmap
+            )
+
+    return participant_details
