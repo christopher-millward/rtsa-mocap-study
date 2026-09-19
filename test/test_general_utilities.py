@@ -1,19 +1,24 @@
 import numpy as np
 import pytest
-from modules.general_utilities import create_rotation_matrices
-
+from modules.general_utilities import create_rotation_matrices, convert_heatmap_to_degrees
+from schema import Heatmap
 
 # ---- Tests ----
+
+
 class TestCreateRotationMatrices:
     # Incorrect shapes should be rejected.
     @pytest.mark.parametrize(
         "data",
         [
             pytest.param(np.zeros(18, dtype=np.float64), id="flat-row"),
-            pytest.param(np.zeros((2, 17), dtype=np.float64), id="too-few-columns"),
-            pytest.param(np.zeros((2, 19), dtype=np.float64), id="too-many-columns"),
+            pytest.param(np.zeros((2, 17), dtype=np.float64),
+                         id="too-few-columns"),
+            pytest.param(np.zeros((2, 19), dtype=np.float64),
+                         id="too-many-columns"),
             pytest.param(np.zeros((2, 3, 6), dtype=np.float64), id="3d-array"),
-            pytest.param(np.zeros((0, 18), dtype=np.float64), id="empty-array"),
+            pytest.param(np.zeros((0, 18), dtype=np.float64),
+                         id="empty-array"),
         ],
     )
     def test_should_reject_incorrect_shapes(self, data):
@@ -59,15 +64,18 @@ class TestCreateRotationMatrices:
         right_data = np.full((1, 9), 2.0, dtype=np.float64)
         data = np.concatenate((left_data, right_data), axis=1)
         matrix = create_rotation_matrices(data, arm)
-        expected = [left_data.reshape(3, 3) if arm == "left" else right_data.reshape(3, 3)]
+        expected = [left_data.reshape(
+            3, 3) if arm == "left" else right_data.reshape(3, 3)]
         assert np.array_equal(matrix, expected)
 
     # should build the matrix correctly
     @pytest.mark.parametrize(
         ("side", "expected"),
         [
-            pytest.param("left", np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64), id="left"),
-            pytest.param("right", np.array([[10, 11, 12], [13, 14, 15], [16, 17, 18]], dtype=np.float64), id="right"),
+            pytest.param("left", np.array(
+                [[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64), id="left"),
+            pytest.param("right", np.array([[10, 11, 12], [13, 14, 15], [
+                         16, 17, 18]], dtype=np.float64), id="right"),
         ],
     )
     def test_should_build_correct_matrix(self, side, expected):
@@ -79,8 +87,10 @@ class TestCreateRotationMatrices:
     @pytest.mark.parametrize(
         ("side", "expected"),
         [
-            pytest.param("left", np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64), id="left"),
-            pytest.param("right", np.array([[10, 11, 12], [13, 14, 15], [16, 17, 18]], dtype=np.float64), id="right"),
+            pytest.param("left", np.array(
+                [[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64), id="left"),
+            pytest.param("right", np.array([[10, 11, 12], [13, 14, 15], [
+                         16, 17, 18]], dtype=np.float64), id="right"),
         ],
     )
     # Should built the matrix correctly for multiple frames
@@ -112,3 +122,102 @@ class TestCreateRotationMatrices:
         original = data.copy()
         create_rotation_matrices(data, "left")
         assert np.array_equal(data, original)
+
+
+class TestConvertHeatmapToDegrees:
+    @pytest.mark.parametrize(
+        "radians, expected",
+        [
+            (np.array([0.0]), np.array([0.0])),
+            (np.array([np.pi / 2]), np.array([90.0])),
+            (np.array([np.pi]), np.array([180.0])),
+            (np.array([-np.pi / 2]), np.array([-90.0])),
+            (np.array([np.pi / 4, np.pi / 2, np.pi]),
+             np.array([45.0, 90.0, 180.0])),
+        ],
+    )
+    def test_converts_kinematic_values_to_degrees(self, radians, expected):
+        heatmap = Heatmap(
+            bin_width=20,
+            elevation_range_end=180,
+            poe_range_end=360,
+            elevation=radians,
+            poe=radians,
+            ir_er=radians,
+            cumulative_motion=radians,
+            sample_count=np.array([1, 2, 3]),
+        )
+
+        result = convert_heatmap_to_degrees(heatmap)
+
+        np.testing.assert_allclose(result.elevation, expected)
+        np.testing.assert_allclose(result.poe, expected)
+        np.testing.assert_allclose(result.ir_er, expected)
+        np.testing.assert_allclose(result.cumulative_motion, expected)
+
+    def test_preserves_heatmap_metadata(self):
+        heatmap = Heatmap(
+            bin_width=20,
+            elevation_range_end=180,
+            poe_range_end=360,
+            elevation=np.array([np.pi]),
+            poe=np.array([np.pi]),
+            ir_er=np.array([np.pi]),
+            cumulative_motion=np.array([np.pi]),
+            sample_count=np.array([10, 20]),
+        )
+
+        result = convert_heatmap_to_degrees(heatmap)
+
+        assert result.bin_width == heatmap.bin_width
+        assert result.elevation_range_end == heatmap.elevation_range_end
+        assert result.poe_range_end == heatmap.poe_range_end
+        assert result.sample_count is heatmap.sample_count
+
+    def test_preserves_array_shape(self):
+        values = np.array(
+            [
+                [0.0, np.pi / 2],
+                [np.pi, 3 * np.pi / 2],
+            ]
+        )
+
+        heatmap = Heatmap(
+            bin_width=20,
+            elevation_range_end=180,
+            poe_range_end=360,
+            elevation=values,
+            poe=values,
+            ir_er=values,
+            cumulative_motion=values,
+            sample_count=np.ones(values.shape, dtype=np.int32),
+        )
+
+        result = convert_heatmap_to_degrees(heatmap)
+
+        assert result.elevation.shape == values.shape
+        assert result.poe.shape == values.shape
+        assert result.ir_er.shape == values.shape
+        assert result.cumulative_motion.shape == values.shape
+
+    def test_does_not_modify_input_heatmap(self):
+        values = np.array([0.0, np.pi / 2, np.pi])
+        original_values = values.copy()
+
+        heatmap = Heatmap(
+            bin_width=20,
+            elevation_range_end=180,
+            poe_range_end=360,
+            elevation=values,
+            poe=values.copy(),
+            ir_er=values.copy(),
+            cumulative_motion=values.copy(),
+            sample_count=np.array([1, 2, 3]),
+        )
+
+        convert_heatmap_to_degrees(heatmap)
+
+        np.testing.assert_array_equal(heatmap.elevation, original_values)
+        np.testing.assert_array_equal(heatmap.poe, original_values)
+        np.testing.assert_array_equal(heatmap.ir_er, original_values)
+        np.testing.assert_array_equal(heatmap.cumulative_motion, original_values)
