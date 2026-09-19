@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
-from modules.general_utilities import create_rotation_matrices, convert_heatmap_to_degrees
-from schema import Heatmap
+from pathlib import Path
+from modules.general_utilities import create_rotation_matrices, convert_heatmap_to_degrees, convert_all_heatmaps_to_degrees
+from schema import Heatmap, ArmRotationDetails, ParticipantDetails, RotationData
 
 # ---- Tests ----
 
@@ -220,4 +221,213 @@ class TestConvertHeatmapToDegrees:
         np.testing.assert_array_equal(heatmap.elevation, original_values)
         np.testing.assert_array_equal(heatmap.poe, original_values)
         np.testing.assert_array_equal(heatmap.ir_er, original_values)
-        np.testing.assert_array_equal(heatmap.cumulative_motion, original_values)
+        np.testing.assert_array_equal(
+            heatmap.cumulative_motion, original_values)
+
+
+class TestConvertAllHeatmapsToDegrees:
+    @staticmethod
+    def create_test_heatmap(value: float) -> Heatmap:
+        """Create a heatmap with the default 9 x 18 shape."""
+        shape = (9, 18)
+
+        return Heatmap(
+            elevation=np.full(shape, value, dtype=np.float64),
+            poe=np.full(shape, value, dtype=np.float64),
+            ir_er=np.full(shape, value, dtype=np.float64),
+            cumulative_motion=np.full(shape, value, dtype=np.float64),
+            sample_count=np.ones(shape, dtype=np.int32),
+        )
+
+    @classmethod
+    def create_test_participant(
+        cls,
+        left_value: float = 0.0,
+        right_value: float = 0.0,
+    ) -> ParticipantDetails:
+        """Create a participant with specified left/right heatmap values."""
+        return ParticipantDetails(
+            filename=Path("participant_01.txt"),
+            rtsa_side=None,
+            tsa_side=None,
+            dominant_arm=None,
+            age=30,
+            left=ArmRotationDetails(
+                humerothoracic=RotationData(
+                    heatmap=cls.create_test_heatmap(left_value)
+                )
+            ),
+            right=ArmRotationDetails(
+                humerothoracic=RotationData(
+                    heatmap=cls.create_test_heatmap(right_value)
+                )
+            ),
+        )
+
+    @pytest.mark.parametrize(
+        "left_radians,right_radians,left_degrees,right_degrees",
+        [
+            (0.0, 0.0, 0.0, 0.0),
+            (np.pi / 2, np.pi, 90.0, 180.0),
+            (np.pi, 2 * np.pi, 180.0, 360.0),
+            (-np.pi / 2, -np.pi, -90.0, -180.0),
+        ],
+    )
+    def test_converts_left_and_right_heatmaps(
+        self,
+        left_radians,
+        right_radians,
+        left_degrees,
+        right_degrees,
+    ):
+        participant = self.create_test_participant(
+            left_value=left_radians,
+            right_value=right_radians,
+        )
+        participants = [participant]
+
+        result = convert_all_heatmaps_to_degrees(participants)
+
+        np.testing.assert_allclose(
+            result[0].left.humerothoracic.heatmap.elevation,
+            left_degrees,
+        )
+        np.testing.assert_allclose(
+            result[0].right.humerothoracic.heatmap.elevation,
+            right_degrees,
+        )
+
+    def test_converts_all_participants(self):
+        participants = [
+            self.create_test_participant(
+                left_value=np.pi / 2,
+                right_value=np.pi,
+            ),
+            self.create_test_participant(
+                left_value=np.pi,
+                right_value=np.pi / 4,
+            ),
+        ]
+
+        result = convert_all_heatmaps_to_degrees(participants)
+
+        expected = [
+            (90.0, 180.0),
+            (180.0, 45.0),
+        ]
+
+        for participant, (left_expected, right_expected) in zip(
+            result, expected
+        ):
+            np.testing.assert_allclose(
+                participant.left.humerothoracic.heatmap.elevation,
+                left_expected,
+            )
+            np.testing.assert_allclose(
+                participant.right.humerothoracic.heatmap.elevation,
+                right_expected,
+            )
+
+    def test_converts_all_heatmap_fields(self):
+        participant = self.create_test_participant(
+            left_value=np.pi / 2,
+            right_value=np.pi,
+        )
+
+        convert_all_heatmaps_to_degrees([participant])
+
+        left_heatmap = participant.left.humerothoracic.heatmap
+        right_heatmap = participant.right.humerothoracic.heatmap
+
+        for heatmap, expected in [
+            (left_heatmap, 90.0),
+            (right_heatmap, 180.0),
+        ]:
+            np.testing.assert_allclose(heatmap.elevation, expected)
+            np.testing.assert_allclose(heatmap.poe, expected)
+            np.testing.assert_allclose(heatmap.ir_er, expected)
+            np.testing.assert_allclose(heatmap.cumulative_motion, expected)
+
+    def test_preserves_heatmap_metadata(self):
+        participant = self.create_test_participant(
+            left_value=np.pi,
+            right_value=np.pi / 2,
+        )
+
+        left_heatmap = participant.left.humerothoracic.heatmap
+        right_heatmap = participant.right.humerothoracic.heatmap
+
+        convert_all_heatmaps_to_degrees([participant])
+
+        for heatmap, original in [
+            (participant.left.humerothoracic.heatmap, left_heatmap),
+            (participant.right.humerothoracic.heatmap, right_heatmap),
+        ]:
+            assert heatmap.bin_width == original.bin_width
+            assert (
+                heatmap.elevation_range_end
+                == original.elevation_range_end
+            )
+            assert heatmap.poe_range_end == original.poe_range_end
+            np.testing.assert_array_equal(
+                heatmap.sample_count,
+                original.sample_count,
+            )
+
+    def test_preserves_heatmap_shape(self):
+        participant = self.create_test_participant(
+            left_value=np.pi,
+            right_value=np.pi,
+        )
+
+        convert_all_heatmaps_to_degrees([participant])
+
+        for side in ["left", "right"]:
+            heatmap = getattr(
+                participant,
+                side,
+            ).humerothoracic.heatmap
+
+            assert heatmap.shape == (9, 18)
+            assert heatmap.elevation.shape == (9, 18)
+            assert heatmap.poe.shape == (9, 18)
+            assert heatmap.ir_er.shape == (9, 18)
+            assert heatmap.cumulative_motion.shape == (9, 18)
+            assert heatmap.sample_count.shape == (9, 18)
+
+    def test_returns_same_participant_list(self):
+        participants = [
+            self.create_test_participant(
+                left_value=np.pi,
+                right_value=np.pi,
+            )
+        ]
+
+        result = convert_all_heatmaps_to_degrees(participants)
+
+        assert result is participants
+
+    def test_preserves_participant_objects(self):
+        participant = self.create_test_participant(
+            left_value=np.pi,
+            right_value=np.pi,
+        )
+        participants = [participant]
+
+        result = convert_all_heatmaps_to_degrees(participants)
+
+        assert result[0] is participant
+
+    def test_replaces_heatmaps_with_converted_heatmaps(self):
+        participant = self.create_test_participant(
+            left_value=np.pi,
+            right_value=np.pi / 2,
+        )
+
+        original_left = participant.left.humerothoracic.heatmap
+        original_right = participant.right.humerothoracic.heatmap
+
+        convert_all_heatmaps_to_degrees([participant])
+
+        assert participant.left.humerothoracic.heatmap is not original_left
+        assert participant.right.humerothoracic.heatmap is not original_right
