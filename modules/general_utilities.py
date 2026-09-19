@@ -5,6 +5,8 @@ Author: Christopher Millward
 import numpy as np
 import numpy.typing as npt
 
+from schema import Heatmap
+
 
 def create_rotation_matrices(
     data: npt.NDArray[np.float64],
@@ -46,3 +48,27 @@ def create_rotation_matrices(
 
     start_index = 0 if arm == 'left' else 9
     return data_array[:, start_index:start_index + 9].reshape(-1, 3, 3)
+
+
+def convert_heatmap_to_degrees(heatmap: Heatmap) -> Heatmap:
+    """Convert kinematics values in a heatmap from radians to degrees.
+
+    Args:
+        heatmap (Heatmap): The input heatmap with values in radians.
+
+    Returns:
+        Heatmap: The output heatmap with values in degrees.
+    """
+
+    deg_heatmap = Heatmap(
+        bin_width=heatmap.bin_width,
+        elevation_range_end=heatmap.elevation_range_end,
+        poe_range_end=heatmap.poe_range_end,
+        elevation=np.degrees(heatmap.elevation),
+        poe=np.degrees(heatmap.poe),
+        ir_er=np.degrees(heatmap.ir_er),
+        cumulative_motion=np.degrees(heatmap.cumulative_motion),
+        sample_count=heatmap.sample_count
+    )
+
+    return deg_heatmap
