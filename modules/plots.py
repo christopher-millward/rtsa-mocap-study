@@ -29,7 +29,7 @@ fig_size = (7.16, 5.0)  # 1 column width in inches
 palette = "cividis"  # color palette for plots
 dpi = 600  # dots per inch for the plots
 transparent = False  # whether to save plots with transparent background
-titles = True
+titles = False
 
 # -------------------------------------------------------------------
 # Helper Functions
@@ -259,8 +259,8 @@ def plot_heatmap(
     )
 
     ax.invert_yaxis()
-    ax.set_xlabel("Plane of Elevation (deg)")
-    ax.set_ylabel("Elevation (deg)")
+    ax.set_xlabel("Plane of Elevation (degrees)")
+    ax.set_ylabel("Elevation (degrees)")
     plt.tight_layout()
     if titles:
         ax.set_title(
