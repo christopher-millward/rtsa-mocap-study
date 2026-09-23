@@ -25,16 +25,15 @@ flowchart TD
 
       subgraph arms[For each arm]
 
-         raw_data[Time series of rotation matrices representing the orientation of the humerus wrt the sternum]
+         raw_data[Ingest the time series of rotation matrices representing the orientation of the humerus with respect to the sternum]
 
-         diffs[Calculate first-order matrix differences]
-         traces[Calculate trace of each matrix]
+         traces[Calculate the amount of rotation observed between each sample]
 
-         postures[Calculate instantaneous humerothoracic postures]
+         postures[Calculate instantaneous humerothoracic postures at each sample]
 
          subgraph regions[For each region of elevation x POE]
             slice[Select only data within the region]
-            sum([Sum selected trace data to get region total])
+            sum([Sum selected data to get region total])
          end
 
          cum_sum([Sum region totals to get cumulative total])
@@ -42,8 +41,7 @@ flowchart TD
    end
 
    start --> participants
-   raw_data --> diffs & postures
-   diffs --> traces
+   raw_data --> traces & postures
    traces --> slice
    postures --> slice
    slice --> sum
