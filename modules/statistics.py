@@ -11,7 +11,9 @@ from scipy import stats
 from config import STATISTICS_OUTPUT_PATH, RESULTS_PICKLE_PATH
 from schema import ParticipantDetails
 
+# -------------------------------------------------------------------
 # Constants for column names in the statistics DataFrame
+# -------------------------------------------------------------------
 OPERATED_CUMULATIVE_ROTATION = "Operated cumulative rotation"
 NON_OPERATED_CUMULATIVE_ROTATION = "Non-operated cumulative rotation"
 OPERATED_ROTATION_RATE = "Operated rotation rate"
@@ -113,8 +115,10 @@ def _create_summary_table(
             rotation_data[non_operated_column].std(),
         ],
         "CofV": [
-            rotation_data[operated_column].std() / rotation_data[operated_column].mean(),
-            rotation_data[non_operated_column].std() / rotation_data[non_operated_column].mean(),
+            rotation_data[operated_column].std(
+            ) / rotation_data[operated_column].mean(),
+            rotation_data[non_operated_column].std(
+            ) / rotation_data[non_operated_column].mean(),
         ],
         "t-statistic": [t_stat, t_stat],
         "p-value": [p_value, p_value],
