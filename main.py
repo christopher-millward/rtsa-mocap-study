@@ -34,6 +34,7 @@ def main():
 
         # load the data
         raw_data = load_motion_capture_data(participant.filename)
+        participant.mocap_duration = raw_data.shape[0] / 10 / 3600
 
         for side in ['left', 'right']:
             # appease the type checker

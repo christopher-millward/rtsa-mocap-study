@@ -259,6 +259,24 @@ class TestLoadParticipantDetails:
         assert side_obj.humerothoracic.trace_total == 1.23
         assert side_obj.humerothoracic.rotation_rate is None
 
+    def test_mocap_duration_defaults_to_none(self):
+        participants = _load_from_rows(
+            [
+                {
+                    "fname": "participant-mocap-duration",
+                    "RTSA-R": 0,
+                    "RTSA-L": 0,
+                    "TSA-R": 0,
+                    "TSA-L": 0,
+                    "R-DOM": 1,
+                    "L-DOM": 0,
+                    "Age": 74,
+                }
+            ]
+        )
+
+        assert participants[0].mocap_duration is None
+
     def test_should_use_independent_left_and_right_arm_dictionaries(self):
         participants = _load_from_rows(
             [

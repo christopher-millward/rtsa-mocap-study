@@ -46,6 +46,7 @@ def participant_details() -> list[ParticipantDetails]:
             age=65,
             left=arm,
             right=arm,
+            mocap_duration=np.float64(0.01),
         )
     ]
 

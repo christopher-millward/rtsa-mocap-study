@@ -122,6 +122,7 @@ class ParticipantDetails():
         age (int): Participant's age in years.
         left (ArmRotationDetails): Rotation summary metrics for the left arm.
         right (ArmRotationDetails): Rotation summary metrics for the right arm.
+        mocap_duration (np.float64 | None): Total raw mocap recording duration in hours.
         operated (list[ArmRotationDetails]): A list of the rotation summary metrics for the operated arm(s).
         non_operated (list[ArmRotationDetails]): A list of the rotation summary metrics for the non-operated arm(s).
     """
@@ -133,6 +134,7 @@ class ParticipantDetails():
     age: int
     left: ArmRotationDetails
     right: ArmRotationDetails
+    mocap_duration: np.float64 | None = None
 
     @property
     def operated(self) -> list[ArmRotationDetails]:
