@@ -73,6 +73,37 @@ def convert_heatmap_to_degrees(heatmap: Heatmap) -> Heatmap:
     return deg_heatmap
 
 
+def create_rotation_rate_heatmap(
+    heatmap: Heatmap,
+    mocap_duration: np.float64,
+) -> Heatmap:
+    """Create a degrees-per-hour heatmap from a cumulative degree heatmap.
+
+    Args:
+        heatmap: Cumulative rotation heatmap in degrees.
+        mocap_duration: Total recording duration in hours.
+
+    Returns:
+        A new heatmap whose motion arrays contain degrees per hour.
+
+    Raises:
+        ValueError: If the duration is not positive.
+    """
+    if mocap_duration <= 0:
+        raise ValueError("mocap_duration must be greater than zero")
+
+    return Heatmap(
+        bin_width=heatmap.bin_width,
+        elevation_range_end=heatmap.elevation_range_end,
+        poe_range_end=heatmap.poe_range_end,
+        elevation=heatmap.elevation / mocap_duration,
+        poe=heatmap.poe / mocap_duration,
+        ir_er=heatmap.ir_er / mocap_duration,
+        cumulative_motion=heatmap.cumulative_motion / mocap_duration,
+        sample_count=heatmap.sample_count.copy(),
+    )
+
+
 def convert_all_heatmaps_to_degrees(
     participant_details: list[ParticipantDetails],
 ) -> list[ParticipantDetails]:
@@ -92,8 +123,8 @@ def convert_all_heatmaps_to_degrees(
     for participant in participant_details:
         for side in ["left", "right"]:
             arm = getattr(participant, side)
-            arm.humerothoracic.heatmap = convert_heatmap_to_degrees(
-                arm.humerothoracic.heatmap
+            arm.humerothoracic.cumulative_rotation_heatmap = convert_heatmap_to_degrees(
+                arm.humerothoracic.cumulative_rotation_heatmap
             )
 
     return participant_details

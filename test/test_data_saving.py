@@ -29,7 +29,7 @@ def participant_details() -> list[ParticipantDetails]:
     rotation_data = RotationData(
         trace_total=np.float64(123.45),
         rotation_rate=np.float64(0.25 * 10 * 3600),
-        heatmap=heatmap,
+        cumulative_rotation_heatmap=heatmap,
     )
 
     arm = ArmRotationDetails(

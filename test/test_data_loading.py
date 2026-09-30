@@ -224,7 +224,7 @@ class TestLoadParticipantDetails:
         )
 
         participant = participants[0]
-        left = participant.left.humerothoracic.heatmap
+        left = participant.left.humerothoracic.cumulative_rotation_heatmap
 
         assert left.bin_width == 20
         assert left.elevation_range_end == 180

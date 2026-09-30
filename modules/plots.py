@@ -59,7 +59,7 @@ def _stack_heatmaps(
     for participant in data:
         side_data = getattr(participant, side)[0]
         motion_data = getattr(side_data, motion_type)
-        heatmap = getattr(motion_data.heatmap, value)
+        heatmap = getattr(motion_data.cumulative_rotation_heatmap, value)
 
         heatmaps.append(heatmap)
 
@@ -218,7 +218,9 @@ def plot_heatmap(
     std_heatmap = np.std(stacked_heatmaps, axis=0, ddof=1)
 
     # plot the heatmap with mean and std
-    root_heatmap = getattr(getattr(data[0], side)[0], motion_type).heatmap
+    root_heatmap = getattr(
+        getattr(data[0], side)[0], motion_type
+    ).cumulative_rotation_heatmap
     x_min = 0
     x_max = root_heatmap.poe_range_end
     y_min = 0

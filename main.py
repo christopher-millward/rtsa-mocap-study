@@ -4,7 +4,11 @@ Author: Christopher Millward
 """
 from pathlib import Path
 from typing_extensions import Literal, cast
-from modules.general_utilities import convert_heatmap_to_degrees, create_rotation_matrices
+from modules.general_utilities import (
+    convert_heatmap_to_degrees,
+    create_rotation_matrices,
+    create_rotation_rate_heatmap,
+)
 from modules.kinematics import calculate_bin_rotations
 from modules.data_loading import load_participant_details, load_motion_capture_data
 from modules.data_preprocessing import clean_and_validate_data
@@ -34,7 +38,10 @@ def main():
 
         # load the data
         raw_data = load_motion_capture_data(participant.filename)
-        participant.mocap_duration = raw_data.shape[0] / 10 / 3600
+
+        # Calculate and store the total mocap duration in hours
+        mocap_duration = raw_data.shape[0] / 10 / 3600
+        participant.mocap_duration = mocap_duration
 
         for side in ['left', 'right']:
             # appease the type checker
@@ -46,20 +53,26 @@ def main():
             # clean and validate data
             cleaned_data = clean_and_validate_data(data)
 
-            # run kinematics
-            kinematics = calculate_bin_rotations(cleaned_data, i)
+            # run kinematics (get cumulative rotation heatmap)
+            cumulative_motion_heatmap = calculate_bin_rotations(
+                cleaned_data, i)
 
             # convert kinematics data from radians to degrees for stats and plotting
-            kinematics = convert_heatmap_to_degrees(kinematics)
+            cumulative_motion_heatmap = convert_heatmap_to_degrees(
+                cumulative_motion_heatmap)
+
+            # create rotation rate heatmap
+            rotation_rate_heatmap = create_rotation_rate_heatmap(
+                cumulative_motion_heatmap,
+                mocap_duration,
+            )
 
             # save kinematics data
             arm = getattr(participant_details[i], side)
-            arm.humerothoracic.heatmap = kinematics
-            arm.humerothoracic.trace_total = kinematics.cumulative_motion.sum()
-            total_samples = kinematics.sample_count.sum()
-            arm.humerothoracic.rotation_rate = (
-                arm.humerothoracic.trace_total / total_samples * 10 * 3600
-            )
+            arm.humerothoracic.cumulative_rotation_heatmap = cumulative_motion_heatmap
+            arm.humerothoracic.rotation_rate_heatmap = rotation_rate_heatmap
+            arm.humerothoracic.trace_total = cumulative_motion_heatmap.cumulative_motion.sum()
+            arm.humerothoracic.rotation_rate = arm.humerothoracic.trace_total / mocap_duration
 
         # update progress bar
         get_pbar_manager().update_outer()

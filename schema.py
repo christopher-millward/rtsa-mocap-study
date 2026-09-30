@@ -8,6 +8,8 @@ from pathlib import Path
 # ----------------------------
 # Participant data model
 # ----------------------------
+
+
 @dataclass(slots=True)
 class Heatmap:
     """
@@ -90,11 +92,13 @@ class RotationData:
     Attributes:
         trace_total (np.float64 | None): The total rotation for the arm.
         rotation_rate (np.float64 | None): The rotation rate per hour (deg / hr).
-        heatmap (Heatmap): The heatmap for the arm.
+        cumulative_rotation_heatmap (Heatmap): The cumulative rotation heatmap for the arm.
+        rotation_rate_heatmap (Heatmap): The heatmap of rotation rates in degrees per hour.
     """
     trace_total: np.float64 | None = None
     rotation_rate: np.float64 | None = None
-    heatmap: Heatmap = field(default_factory=Heatmap)
+    cumulative_rotation_heatmap: Heatmap = field(default_factory=Heatmap)
+    rotation_rate_heatmap: Heatmap = field(default_factory=Heatmap)
 
 
 @dataclass

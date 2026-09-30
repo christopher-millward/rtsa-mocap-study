@@ -31,14 +31,14 @@ class ProgressManager:
             participant_details[0]
             .right
             .humerothoracic
-            .heatmap
+            .cumulative_rotation_heatmap
             .shape[0]
         )
         n_poe_bins = (
             participant_details[0]
             .right
             .humerothoracic
-            .heatmap
+            .cumulative_rotation_heatmap
             .shape[1]
         )
 

@@ -1,7 +1,12 @@
 import numpy as np
 import pytest
 from pathlib import Path
-from modules.general_utilities import create_rotation_matrices, convert_heatmap_to_degrees, convert_all_heatmaps_to_degrees
+from modules.general_utilities import (
+    create_rotation_matrices,
+    convert_heatmap_to_degrees,
+    convert_all_heatmaps_to_degrees,
+    create_rotation_rate_heatmap,
+)
 from schema import Heatmap, ArmRotationDetails, ParticipantDetails, RotationData
 
 # ---- Tests ----
@@ -225,6 +230,61 @@ class TestConvertHeatmapToDegrees:
             heatmap.cumulative_motion, original_values)
 
 
+class TestCreateRotationRateHeatmap:
+    @staticmethod
+    def create_test_heatmap() -> Heatmap:
+        values = np.array([[10.0, 20.0], [30.0, 40.0]])
+        return Heatmap(
+            bin_width=10,
+            elevation_range_end=20,
+            poe_range_end=20,
+            elevation=values.copy(),
+            poe=(values + 1).copy(),
+            ir_er=(values + 2).copy(),
+            cumulative_motion=(values + 3).copy(),
+            sample_count=np.array([[1, 2], [3, 4]], dtype=np.int32),
+        )
+
+    def test_divides_motion_arrays_by_mocap_duration(self):
+        heatmap = self.create_test_heatmap()
+
+        result = create_rotation_rate_heatmap(heatmap, np.float64(2.0))
+
+        np.testing.assert_allclose(result.elevation, heatmap.elevation / 2)
+        np.testing.assert_allclose(result.poe, heatmap.poe / 2)
+        np.testing.assert_allclose(result.ir_er, heatmap.ir_er / 2)
+        np.testing.assert_allclose(
+            result.cumulative_motion,
+            heatmap.cumulative_motion / 2,
+        )
+
+    def test_copies_heatmap_metadata_and_sample_counts(self):
+        heatmap = self.create_test_heatmap()
+
+        result = create_rotation_rate_heatmap(heatmap, np.float64(2.0))
+
+        assert result.bin_width == heatmap.bin_width
+        assert result.elevation_range_end == heatmap.elevation_range_end
+        assert result.poe_range_end == heatmap.poe_range_end
+        np.testing.assert_array_equal(
+            result.sample_count, heatmap.sample_count)
+        assert result.sample_count is not heatmap.sample_count
+
+    def test_does_not_modify_input_heatmap(self):
+        heatmap = self.create_test_heatmap()
+        original = heatmap.elevation.copy()
+
+        create_rotation_rate_heatmap(heatmap, np.float64(2.0))
+
+        np.testing.assert_array_equal(heatmap.elevation, original)
+
+    def test_rejects_non_positive_mocap_duration(self):
+        heatmap = self.create_test_heatmap()
+
+        with pytest.raises(ValueError, match="greater than zero"):
+            create_rotation_rate_heatmap(heatmap, np.float64(0.0))
+
+
 class TestConvertAllHeatmapsToDegrees:
     @staticmethod
     def create_test_heatmap(value: float) -> Heatmap:
@@ -254,12 +314,14 @@ class TestConvertAllHeatmapsToDegrees:
             age=30,
             left=ArmRotationDetails(
                 humerothoracic=RotationData(
-                    heatmap=cls.create_test_heatmap(left_value)
+                    cumulative_rotation_heatmap=cls.create_test_heatmap(
+                        left_value)
                 )
             ),
             right=ArmRotationDetails(
                 humerothoracic=RotationData(
-                    heatmap=cls.create_test_heatmap(right_value)
+                    cumulative_rotation_heatmap=cls.create_test_heatmap(
+                        right_value)
                 )
             ),
         )
@@ -289,11 +351,11 @@ class TestConvertAllHeatmapsToDegrees:
         result = convert_all_heatmaps_to_degrees(participants)
 
         np.testing.assert_allclose(
-            result[0].left.humerothoracic.heatmap.elevation,
+            result[0].left.humerothoracic.cumulative_rotation_heatmap.elevation,
             left_degrees,
         )
         np.testing.assert_allclose(
-            result[0].right.humerothoracic.heatmap.elevation,
+            result[0].right.humerothoracic.cumulative_rotation_heatmap.elevation,
             right_degrees,
         )
 
@@ -320,11 +382,11 @@ class TestConvertAllHeatmapsToDegrees:
             result, expected
         ):
             np.testing.assert_allclose(
-                participant.left.humerothoracic.heatmap.elevation,
+                participant.left.humerothoracic.cumulative_rotation_heatmap.elevation,
                 left_expected,
             )
             np.testing.assert_allclose(
-                participant.right.humerothoracic.heatmap.elevation,
+                participant.right.humerothoracic.cumulative_rotation_heatmap.elevation,
                 right_expected,
             )
 
@@ -336,8 +398,8 @@ class TestConvertAllHeatmapsToDegrees:
 
         convert_all_heatmaps_to_degrees([participant])
 
-        left_heatmap = participant.left.humerothoracic.heatmap
-        right_heatmap = participant.right.humerothoracic.heatmap
+        left_heatmap = participant.left.humerothoracic.cumulative_rotation_heatmap
+        right_heatmap = participant.right.humerothoracic.cumulative_rotation_heatmap
 
         for heatmap, expected in [
             (left_heatmap, 90.0),
@@ -354,14 +416,14 @@ class TestConvertAllHeatmapsToDegrees:
             right_value=np.pi / 2,
         )
 
-        left_heatmap = participant.left.humerothoracic.heatmap
-        right_heatmap = participant.right.humerothoracic.heatmap
+        left_heatmap = participant.left.humerothoracic.cumulative_rotation_heatmap
+        right_heatmap = participant.right.humerothoracic.cumulative_rotation_heatmap
 
         convert_all_heatmaps_to_degrees([participant])
 
         for heatmap, original in [
-            (participant.left.humerothoracic.heatmap, left_heatmap),
-            (participant.right.humerothoracic.heatmap, right_heatmap),
+            (participant.left.humerothoracic.cumulative_rotation_heatmap, left_heatmap),
+            (participant.right.humerothoracic.cumulative_rotation_heatmap, right_heatmap),
         ]:
             assert heatmap.bin_width == original.bin_width
             assert (
@@ -386,7 +448,7 @@ class TestConvertAllHeatmapsToDegrees:
             heatmap = getattr(
                 participant,
                 side,
-            ).humerothoracic.heatmap
+            ).humerothoracic.cumulative_rotation_heatmap
 
             assert heatmap.shape == (9, 18)
             assert heatmap.elevation.shape == (9, 18)
@@ -424,10 +486,10 @@ class TestConvertAllHeatmapsToDegrees:
             right_value=np.pi / 2,
         )
 
-        original_left = participant.left.humerothoracic.heatmap
-        original_right = participant.right.humerothoracic.heatmap
+        original_left = participant.left.humerothoracic.cumulative_rotation_heatmap
+        original_right = participant.right.humerothoracic.cumulative_rotation_heatmap
 
         convert_all_heatmaps_to_degrees([participant])
 
-        assert participant.left.humerothoracic.heatmap is not original_left
-        assert participant.right.humerothoracic.heatmap is not original_right
+        assert participant.left.humerothoracic.cumulative_rotation_heatmap is not original_left
+        assert participant.right.humerothoracic.cumulative_rotation_heatmap is not original_right
