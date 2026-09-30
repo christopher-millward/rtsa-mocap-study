@@ -13,8 +13,21 @@ import seaborn as sns
 import numpy as np
 from typing import Literal
 
-from config import CUMULATIVE_MOTION_RAINCLOUD_PATH, OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH, RESULTS_PICKLE_PATH
-from modules.statistics import get_only_one_sided_participants, create_cumulative_totals_dataframe
+from config import (
+    CUMULATIVE_MOTION_RAINCLOUD_PATH,
+    OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH,
+    OPERATED_ROTATION_RATE_HEATMAP_PATH,
+    RESULTS_PICKLE_PATH,
+    ROTATION_RATE_RAINCLOUD_PATH,
+)
+from modules.statistics import (
+    NON_OPERATED_CUMULATIVE_ROTATION,
+    NON_OPERATED_ROTATION_RATE,
+    OPERATED_CUMULATIVE_ROTATION,
+    OPERATED_ROTATION_RATE,
+    create_rotation_data_dataframe,
+    get_only_one_sided_participants,
+)
 from schema import ParticipantDetails
 
 
@@ -41,6 +54,7 @@ def _stack_heatmaps(
     side: Literal["operated", "non_operated"],
     value: Literal["cumulative_motion", "elevation", "POE", "IR_ER"],
     motion_type: Literal["humerothoracic", "glenohumeral"],
+    metric: Literal["cumulative_rotation", "rotation_rate"] = "cumulative_rotation",
 ) -> np.ndarray:
     """
     Stack heatmaps from a list of ParticipantDetails objects.
@@ -59,7 +73,12 @@ def _stack_heatmaps(
     for participant in data:
         side_data = getattr(participant, side)[0]
         motion_data = getattr(side_data, motion_type)
-        heatmap = getattr(motion_data.cumulative_rotation_heatmap, value)
+        heatmap_field = (
+            "cumulative_rotation_heatmap"
+            if metric == "cumulative_rotation"
+            else "rotation_rate_heatmap"
+        )
+        heatmap = getattr(getattr(motion_data, heatmap_field), value)
 
         heatmaps.append(heatmap)
 
@@ -76,7 +95,8 @@ def plot_raincloud(
         palette: str = palette,
         transparent: bool = transparent,
         dpi: int = 600,
-        titles: bool = titles
+        titles: bool = titles,
+        metric: Literal["cumulative_rotation", "rotation_rate"] = "cumulative_rotation",
 
 ) -> None:
     """Plot a raincloud plot of the cumulative totals.
@@ -88,10 +108,26 @@ def plot_raincloud(
     """
     # Prep data
     one_sided_participants = get_only_one_sided_participants(data)
-    cumulative_totals = create_cumulative_totals_dataframe(
-        one_sided_participants)
+    rotation_data = create_rotation_data_dataframe(one_sided_participants)
+    if metric == "cumulative_rotation":
+        operated_column = OPERATED_CUMULATIVE_ROTATION
+        non_operated_column = NON_OPERATED_CUMULATIVE_ROTATION
+        x_label = "Cumulative Humerothoracic Rotation (degrees)"
+        title = "Distribution of Cumulative Humerothoracic Rotation"
+    else:
+        operated_column = OPERATED_ROTATION_RATE
+        non_operated_column = NON_OPERATED_ROTATION_RATE
+        x_label = "Humerothoracic Rotation Rate (degrees per hour)"
+        title = "Distribution of Humerothoracic Rotation Rate"
+
+    rotation_values = rotation_data[
+        ["participant", operated_column, non_operated_column]
+    ].rename(columns={
+        operated_column: "Operated",
+        non_operated_column: "Non-operated",
+    })
     df_long = pd.melt(
-        cumulative_totals,
+        rotation_values,
         id_vars=["participant"],
         var_name="side",
         value_name="total",
@@ -99,8 +135,8 @@ def plot_raincloud(
 
     # calculate p-value for paired t-test
     t_stat, p_value = stats.ttest_rel(
-        cumulative_totals['Operated'],
-        cumulative_totals['Non-operated']
+        rotation_values['Operated'],
+        rotation_values['Non-operated']
     )
 
     # Make raincloud
@@ -141,11 +177,11 @@ def plot_raincloud(
     ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.1e}"))
     # ax.set_xlim(left=2e6)  # I manually set this after seeing the plot.
 
-    ax.set_xlabel("Cumulative Humerothoracic Rotation (degrees)")
+    ax.set_xlabel(x_label)
     ax.set_ylabel("Arm")
     if titles:
         ax.set_title(
-            "Distribution of Cumulative Humerothoracic Rotation "
+            f"{title} "
             "in Operated vs. Non-Operated Sides"
         )
 
@@ -203,7 +239,8 @@ def plot_heatmap(
     palette: str = palette,
     transparent: bool = transparent,
     dpi: int = dpi,
-    titles: bool = titles
+    titles: bool = titles,
+    metric: Literal["cumulative_rotation", "rotation_rate"] = "cumulative_rotation",
 ) -> None:
 
     # Prep the data
@@ -211,16 +248,21 @@ def plot_heatmap(
         data=data,
         side=side,
         value=value,
-        motion_type=motion_type
+        motion_type=motion_type,
+        metric=metric,
     )
     mean_heatmap = np.mean(stacked_heatmaps, axis=0)
     # Use ddof=1 for sample standard deviation
     std_heatmap = np.std(stacked_heatmaps, axis=0, ddof=1)
 
     # plot the heatmap with mean and std
-    root_heatmap = getattr(
-        getattr(data[0], side)[0], motion_type
-    ).cumulative_rotation_heatmap
+    heatmap_field = (
+        "cumulative_rotation_heatmap"
+        if metric == "cumulative_rotation"
+        else "rotation_rate_heatmap"
+    )
+    root_heatmap = getattr(getattr(data[0], side)[0], motion_type)
+    root_heatmap = getattr(root_heatmap, heatmap_field)
     x_min = 0
     x_max = root_heatmap.poe_range_end
     y_min = 0
@@ -248,6 +290,12 @@ def plot_heatmap(
     # Create heatmap
     fig, ax = plt.subplots(figsize=fig_size)
 
+    unit_label = (
+        "Mean Rotation (degrees)"
+        if metric == "cumulative_rotation"
+        else "Mean Rotation Rate (degrees per hour)"
+    )
+
     sns.heatmap(
         mean_scaled,
         annot=annotations,
@@ -256,7 +304,7 @@ def plot_heatmap(
         cmap=palette,
         xticklabels=x,
         yticklabels=y,
-        cbar_kws={"label": r"Mean Rotation (degrees) $\times 10^3$"},
+        cbar_kws={"label": f"{unit_label} $\\times 10^3$"},
         ax=ax,
     )
 
@@ -300,6 +348,17 @@ def create_and_save_all_figures(
         titles=titles
     )
 
+    plot_raincloud(
+        data=data,
+        out_path=ROTATION_RATE_RAINCLOUD_PATH,
+        fig_size=fig_size,
+        palette=palette,
+        transparent=transparent,
+        dpi=dpi,
+        titles=titles,
+        metric="rotation_rate",
+    )
+
     plot_heatmap(
         data=data,
         side="operated",
@@ -311,6 +370,20 @@ def create_and_save_all_figures(
         transparent=transparent,
         dpi=dpi,
         titles=titles
+    )
+
+    plot_heatmap(
+        data=data,
+        side="operated",
+        value="cumulative_motion",
+        motion_type="humerothoracic",
+        out_path=OPERATED_ROTATION_RATE_HEATMAP_PATH,
+        fig_size=fig_size,
+        palette=palette,
+        transparent=transparent,
+        dpi=dpi,
+        titles=titles,
+        metric="rotation_rate",
     )
 
 

@@ -12,6 +12,8 @@ RESULTS_HEATMAP_CSV_PATH = OUTPUTS_DIR / "heatmap_results_data.csv"
 
 CUMULATIVE_MOTION_RAINCLOUD_PATH = OUTPUTS_DIR / "cumulative_motion_raincloud.png"
 OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH = OUTPUTS_DIR / "operated_cumulative_motion_heatmap.png"
+ROTATION_RATE_RAINCLOUD_PATH = OUTPUTS_DIR / "rotation_rate_raincloud.png"
+OPERATED_ROTATION_RATE_HEATMAP_PATH = OUTPUTS_DIR / "operated_rotation_rate_heatmap.png"
 CUMULATIVE_MOTION_STATISTICS_PATH = OUTPUTS_DIR / "cumulative_motion_statistics.xlsx"
 
 # Analysis and Testing Parameters
