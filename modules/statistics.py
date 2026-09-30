@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 from scipy import stats
-from config import CUMULATIVE_MOTION_STATISTICS_PATH
+from config import STATISTICS_OUTPUT_PATH, RESULTS_PICKLE_PATH
 from schema import ParticipantDetails
 
 # Constants for column names in the statistics DataFrame
@@ -16,6 +16,7 @@ OPERATED_CUMULATIVE_ROTATION = "Operated cumulative rotation"
 NON_OPERATED_CUMULATIVE_ROTATION = "Non-operated cumulative rotation"
 OPERATED_ROTATION_RATE = "Operated rotation rate"
 NON_OPERATED_ROTATION_RATE = "Non-operated rotation rate"
+MOCAP_DURATION = "Mocap duration (hours)"
 
 
 def get_only_one_sided_participants(
@@ -51,6 +52,7 @@ def create_rotation_data_dataframe(
         - Non-operated cumulative rotation: Cumulative rotation for the non-operated arm.
         - Operated rotation rate: Rotation rate for the operated arm.
         - Non-operated rotation rate: Rotation rate for the non-operated arm.
+        - Mocap duration (hours): Total raw mocap recording duration.
 
     Args:
         data (list[ParticipantDetails]): List of ParticipantDetails objects.
@@ -68,6 +70,7 @@ def create_rotation_data_dataframe(
             NON_OPERATED_CUMULATIVE_ROTATION: participant.non_operated[0].humerothoracic.trace_total,
             OPERATED_ROTATION_RATE: participant.operated[0].humerothoracic.rotation_rate,
             NON_OPERATED_ROTATION_RATE: participant.non_operated[0].humerothoracic.rotation_rate,
+            MOCAP_DURATION: participant.mocap_duration,
         }
         rows.append(vals)
 
@@ -79,6 +82,7 @@ def create_rotation_data_dataframe(
             NON_OPERATED_CUMULATIVE_ROTATION,
             OPERATED_ROTATION_RATE,
             NON_OPERATED_ROTATION_RATE,
+            MOCAP_DURATION,
         ],
     )
 
@@ -108,6 +112,10 @@ def _create_summary_table(
             rotation_data[operated_column].std(),
             rotation_data[non_operated_column].std(),
         ],
+        "CofV": [
+            rotation_data[operated_column].std() / rotation_data[operated_column].mean(),
+            rotation_data[non_operated_column].std() / rotation_data[non_operated_column].mean(),
+        ],
         "t-statistic": [t_stat, t_stat],
         "p-value": [p_value, p_value],
     })
@@ -115,7 +123,7 @@ def _create_summary_table(
 
 def run_statistics(
     data: list[ParticipantDetails],
-    out_path: Path = CUMULATIVE_MOTION_STATISTICS_PATH
+    out_path: Path = STATISTICS_OUTPUT_PATH
 ):
     rotation_data = create_rotation_data_dataframe(data)
     cumulative_summary = _create_summary_table(
@@ -143,3 +151,19 @@ def run_statistics(
             sheet_name="rotation_rate_summary",
             index=False,
         )
+
+
+# -------------------------------------------------------------------
+# main() runner to re-plot all figures if this module is run directly
+# -------------------------------------------------------------------
+def main():
+    """Re-run all statistics if this module is run directly."""
+    # Load data from pickle
+    data = pd.read_pickle(Path(RESULTS_PICKLE_PATH))
+
+    # Run all statistics
+    run_statistics(data)
+
+
+if __name__ == "__main__":
+    main()
