@@ -21,12 +21,14 @@ def participant_details() -> list[ParticipantDetails]:
         elevation=np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64),
         poe=np.array([[5.0, 6.0], [7.0, 8.0]], dtype=np.float64),
         ir_er=np.array([[9.0, 10.0], [11.0, 12.0]], dtype=np.float64),
-        cumulative_motion=np.array([[13.0, 14.0], [15.0, 16.0]], dtype=np.float64),
+        cumulative_motion=np.array(
+            [[13.0, 14.0], [15.0, 16.0]], dtype=np.float64),
         sample_count=np.array([[1, 2], [3, 4]], dtype=np.int32),
     )
 
     rotation_data = RotationData(
         trace_total=np.float64(123.45),
+        rotation_rate=np.float64(0.25 * 10 * 3600),
         heatmap=heatmap,
     )
 

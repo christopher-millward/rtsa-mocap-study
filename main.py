@@ -55,6 +55,10 @@ def main():
             arm = getattr(participant_details[i], side)
             arm.humerothoracic.heatmap = kinematics
             arm.humerothoracic.trace_total = kinematics.cumulative_motion.sum()
+            total_samples = kinematics.sample_count.sum()
+            arm.humerothoracic.rotation_rate = (
+                arm.humerothoracic.trace_total / total_samples * 10 * 3600
+            )
 
         # update progress bar
         get_pbar_manager().update_outer()

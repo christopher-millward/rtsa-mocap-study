@@ -59,7 +59,7 @@ class Heatmap:
             raise ValueError(
                 f"bin_width ({self.bin_width}) must evenly divide {self.poe_range_end}."
             )
-        
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Heatmap):
             return NotImplemented
@@ -82,28 +82,33 @@ class Heatmap:
         n_poe_bins = self.poe_range_end // self.bin_width
         return (n_elev_bins, n_poe_bins)
 
+
 @dataclass
 class RotationData:
     """Type definition for rotation data.
 
     Attributes:
         trace_total (np.float64 | None): The total rotation for the arm.
+        rotation_rate (np.float64 | None): The rotation rate per hour (deg / hr).
         heatmap (Heatmap): The heatmap for the arm.
     """
     trace_total: np.float64 | None = None
+    rotation_rate: np.float64 | None = None
     heatmap: Heatmap = field(default_factory=Heatmap)
+
 
 @dataclass
 class ArmRotationDetails():
     """Type definition for per-arm rotation summary metrics.
 
     Attributes:
-        trace_total (np.float64 | None): The total rotation for the arm.
-        rotation_bins (RotationBins | None): The rotation bins for the arm.
+        humerothoracic (RotationData): The rotation data for the humerothoracic joint.
+        glenohumeral (RotationData): The rotation data for the glenohumeral joint.
     """
 
     humerothoracic: RotationData = field(default_factory=RotationData)
     glenohumeral: RotationData = field(default_factory=RotationData)
+
 
 @dataclass
 class ParticipantDetails():

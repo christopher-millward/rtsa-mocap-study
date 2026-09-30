@@ -14,6 +14,8 @@ from modules.data_loading import (
 # ----------------------------
 # Helper Functions
 # ----------------------------
+
+
 def _frame(rows):
     """Build a DataFrame that mimics the Excel sheet structure."""
     return pd.DataFrame(rows)
@@ -255,6 +257,7 @@ class TestLoadParticipantDetails:
         side_obj.humerothoracic.trace_total = np.float64(1.23)
 
         assert side_obj.humerothoracic.trace_total == 1.23
+        assert side_obj.humerothoracic.rotation_rate is None
 
     def test_should_use_independent_left_and_right_arm_dictionaries(self):
         participants = _load_from_rows(
