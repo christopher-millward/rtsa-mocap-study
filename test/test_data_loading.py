@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import time
 from unittest.mock import patch
 from config import RAW_DATA_DIR
 
@@ -7,6 +8,7 @@ import pytest
 import numpy as np
 from schema import ArmRotationDetails, ParticipantDetails
 from modules.data_loading import (
+    _get_first_entry_time,
     load_motion_capture_data,
     load_participant_details
 )
@@ -30,6 +32,32 @@ def _load_from_rows(rows):
 
     mock_read_excel.assert_called_once_with(Path("fake-path.xlsx"))
     return participants
+
+
+class TestGetFirstEntryTime:
+    def test_should_return_time_from_first_data_row(self, tmp_path):
+        filepath = tmp_path / "motion_capture.tsv"
+        filepath.write_text(
+            "Timestamp\tValue\n"
+            "2016-05-10 3:04:05 PM\t1.0\n"
+            "2016-05-10 3:04:06 PM\t2.0\n",
+            encoding="utf-8",
+        )
+
+        result = _get_first_entry_time(filepath)
+
+        assert result == time(15, 4, 5)
+
+    def test_should_raise_value_error_for_invalid_datetime(self, tmp_path):
+        filepath = tmp_path / "motion_capture.tsv"
+        filepath.write_text(
+            "Timestamp\tValue\n"
+            "not-a-datetime\t1.0\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError):
+            _get_first_entry_time(filepath)
 
 
 # ----------------------------
