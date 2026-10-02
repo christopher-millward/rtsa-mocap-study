@@ -141,7 +141,7 @@ class ParticipantDetails():
     dominant_arm: Literal['right', 'left', None]
     age: int
     sex: str
-    start_time: time
+    start_time: time | None
     left: ArmRotationDetails
     right: ArmRotationDetails
     mocap_duration: np.float64 | None = None
