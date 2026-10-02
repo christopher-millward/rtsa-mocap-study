@@ -45,6 +45,7 @@ def participant_details() -> list[ParticipantDetails]:
             tsa_side=None,
             dominant_arm="right",
             age=65,
+            sex="F",
             start_time=time(0, 0, 0),
             left=arm,
             right=arm,

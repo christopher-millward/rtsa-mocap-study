@@ -64,7 +64,7 @@ def create_demographics_dataframe(
             'participant': i,
             'filename': participant.filename,
             'Age': participant.age,
-            'Sex': "No Data Available",
+            'Sex': participant.sex,
             'RTSA side': participant.rtsa_side,
             'Start Time': participant.start_time,
             MOCAP_DURATION: participant.mocap_duration,

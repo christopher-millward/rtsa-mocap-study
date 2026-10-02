@@ -313,6 +313,7 @@ class TestConvertAllHeatmapsToDegrees:
             tsa_side=None,
             dominant_arm=None,
             age=30,
+            sex="F",
             start_time=time(0, 0, 0),
             left=ArmRotationDetails(
                 humerothoracic=RotationData(

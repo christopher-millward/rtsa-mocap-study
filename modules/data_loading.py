@@ -109,6 +109,7 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
                 else dominant_arm in _arms_for_side(rtsa_side)
             ),
             age=cast(int, row.get('Age')),
+            sex=cast(str, row.get('Sex')),
             start_time=_get_first_entry_time(RAW_DATA_DIR / fname),
             left=ArmRotationDetails(
                 humerothoracic=RotationData(),

@@ -87,13 +87,14 @@ class TestLoadParticipantDetails:
                     "R-DOM": 1,
                     "L-DOM": 0,
                     "Age": 74,
+                    "Sex": "F",
                 }
             ]
         )
 
         with patch("pandas.read_excel", return_value=frame) as mock_read_excel, \
             patch("modules.data_loading._get_first_entry_time",
-                return_value=TEST_START_TIME):
+                  return_value=TEST_START_TIME):
             participants = load_participant_details(filepath)
 
         mock_read_excel.assert_called_once_with(Path(filepath))
@@ -124,6 +125,7 @@ class TestLoadParticipantDetails:
                     "R-DOM": 1,
                     "L-DOM": 0,
                     "Age": 74,
+                    "Sex": "F",
                 }
             ]
         )
@@ -155,6 +157,7 @@ class TestLoadParticipantDetails:
                     "R-DOM": 1,
                     "L-DOM": 0,
                     "Age": 74,
+                    "Sex": "F",
                 }
             ]
         )
@@ -181,11 +184,31 @@ class TestLoadParticipantDetails:
                     "R-DOM": r_dom,
                     "L-DOM": l_dom,
                     "Age": 74,
+                    "Sex": "F",
                 }
             ]
         )
 
         assert participants[0].dominant_arm == expected
+
+    def test_should_preserve_sex(self):
+        participants = _load_from_rows(
+            [
+                {
+                    "fname": "participant-sex",
+                    "RTSA-R": 0,
+                    "RTSA-L": 0,
+                    "TSA-R": 0,
+                    "TSA-L": 0,
+                    "R-DOM": 1,
+                    "L-DOM": 0,
+                    "Age": 74,
+                    "Sex": "F",
+                }
+            ]
+        )
+
+        assert participants[0].sex == "F"
 
     @pytest.mark.parametrize(
         ("rtsa_r", "rtsa_l", "r_dom", "expected"),
@@ -242,6 +265,7 @@ class TestLoadParticipantDetails:
                         "R-DOM": r_dom,
                         "L-DOM": l_dom,
                         "Age": 74,
+                        "Sex": "F",
                     }
                 ]
             )
@@ -266,6 +290,7 @@ class TestLoadParticipantDetails:
                     "R-DOM": 1,
                     "L-DOM": 0,
                     "Age": age,
+                    "Sex": "F",
                 }
             ]
         )
@@ -427,6 +452,7 @@ class TestLoadParticipantDetails:
             rtsa_side=rtsa_side,
             tsa_side=None,
             dominant_arm=None,
+            sex="F",
             start_time=time(0, 0, 0),
         )
 
@@ -475,6 +501,7 @@ class TestLoadParticipantDetails:
             rtsa_side=rtsa_side,
             tsa_side=None,
             dominant_arm=None,
+            sex="F",
             start_time=time(0, 0, 0),
         )
 
@@ -523,6 +550,7 @@ class TestLoadParticipantDetails:
             rtsa_side="left",
             tsa_side=None,
             dominant_arm=None,
+            sex="F",
             start_time=time(0, 0, 0),
         )
 
