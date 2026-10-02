@@ -3,6 +3,25 @@ Functions to perform all statistics and output into an excel file.
 
 Author: Christopher Millward
 
+Plan:
+I am going to run both paired t-tests and mixed effects models to compare both:
+- rotation rate
+- difference in rotation rate between op and non-op arms
+
+while controlling for:
+- age
+- sex
+- dominant arm
+
+In order to do this, the data will need to be structured in a long format, with
+each row representing a single arm for a single participant. Each row should 
+have the following columns:
+- participant: The participant's identifier.
+- arm: The arm (operated or non-operated).
+- rotation rate: The rotation rate for the arm.
+- age: The participant's age.
+- sex: The participant's sex.
+- dominant arm: Whether or not this is the participant's dominant arm (boolean).
 """
 from pathlib import Path
 
@@ -19,28 +38,6 @@ NON_OPERATED_CUMULATIVE_ROTATION = "Non-operated cumulative rotation"
 OPERATED_ROTATION_RATE = "Operated rotation rate"
 NON_OPERATED_ROTATION_RATE = "Non-operated rotation rate"
 MOCAP_DURATION = "Mocap duration (hours)"
-
-
-def get_only_one_sided_participants(
-    data: list[ParticipantDetails]
-) -> list[ParticipantDetails]:
-    """Return a list of ParticipantDetails objects with exactly one arm with RTSA and the other arm with no RTSA or TSA.
-
-    Args:
-        data (list[ParticipantDetails]): List of ParticipantDetails objects.
-
-    Returns:
-        list[ParticipantDetails]: List of ParticipantDetails objects.
-    """
-    single_arm_participants = [
-        participant for participant in data if (
-            participant.rtsa_side is not None
-            and participant.rtsa_side != 'both'
-            and participant.tsa_side is None
-        )
-    ]
-
-    return single_arm_participants
 
 
 def create_demographics_dataframe(
@@ -91,6 +88,57 @@ def create_demographics_dataframe(
     )
 
 
+def _create_analysis_dataframe(
+    data: list[ParticipantDetails]
+) -> pd.DataFrame:
+    """
+    Create a long-format dataframe for analysis, with each row representing a 
+    single arm for a single participant. The table will have the following 
+    columns:
+        - participant: The participant's identifier.
+        - arm: The arm (operated or non-operated).
+        - rotation rate: The rotation rate for the arm.
+        - age: The participant's age.
+        - sex: The participant's sex.
+        - dominant arm: Whether or not this is the participant's dominant arm (boolean).
+
+    Args:
+        data (list[ParticipantDetails]): List of ParticipantDetails objects.
+    Returns:
+        pd.DataFrame: Long-format DataFrame for analysis.
+    """
+
+    rows = []
+    for i, participant in enumerate(data):
+        for arm_type, arm in zip(
+            ["operated", "non-operated"],
+            [participant.operated[0], participant.non_operated[0]],
+        ):
+            vals = {
+                'participant': i,
+                'arm': arm_type,
+                'rotation rate': arm.humerothoracic.rotation_rate,
+                'age': participant.age,
+                'sex': participant.sex,
+                'dominant arm': (
+                    True if participant.dominant_arm == arm_type else False
+                ),
+            }
+            rows.append(vals)
+
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "participant",
+            "arm",
+            "rotation rate",
+            "age",
+            "sex",
+            "dominant arm",
+        ],
+    )
+
+
 def create_rotation_data_dataframe(
     data: list[ParticipantDetails]
 ) -> pd.DataFrame:
@@ -111,10 +159,8 @@ def create_rotation_data_dataframe(
         pd.DataFrame: DataFrame of cumulative totals for each participant.
     """
 
-    one_sided_participants = get_only_one_sided_participants(data)
-
     rows = []
-    for i, participant in enumerate(one_sided_participants):
+    for i, participant in enumerate(data):
         vals = {
             'participant': i,
             'filename': participant.filename,
@@ -192,6 +238,10 @@ def run_statistics(
         OPERATED_ROTATION_RATE,
         NON_OPERATED_ROTATION_RATE,
     )
+
+    # run t-test to see if rotation rate differed between sexes (expect sex values to be either 'M' or 'F')
+
+    # run t-test to see if rotation rate differed between rtsa_on_dominant_arm values (expect rtsa_on_dominant_arm values to be either True or False)
 
     # Save the tables to an Excel file
     with pd.ExcelWriter(out_path) as writer:
