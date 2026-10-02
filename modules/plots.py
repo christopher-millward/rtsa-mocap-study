@@ -25,8 +25,7 @@ from modules.statistics import (
     NON_OPERATED_ROTATION_RATE,
     OPERATED_CUMULATIVE_ROTATION,
     OPERATED_ROTATION_RATE,
-    create_rotation_data_dataframe,
-    get_only_one_sided_participants,
+    create_rotation_data_dataframe
 )
 from schema import ParticipantDetails
 
@@ -54,7 +53,8 @@ def _stack_heatmaps(
     side: Literal["operated", "non_operated"],
     value: Literal["cumulative_motion", "elevation", "POE", "IR_ER"],
     motion_type: Literal["humerothoracic", "glenohumeral"],
-    metric: Literal["cumulative_rotation", "rotation_rate"] = "cumulative_rotation",
+    metric: Literal["cumulative_rotation",
+                    "rotation_rate"] = "cumulative_rotation",
 ) -> np.ndarray:
     """
     Stack heatmaps from a list of ParticipantDetails objects.
@@ -96,7 +96,8 @@ def plot_raincloud(
         transparent: bool = transparent,
         dpi: int = 600,
         titles: bool = titles,
-        metric: Literal["cumulative_rotation", "rotation_rate"] = "cumulative_rotation",
+        metric: Literal["cumulative_rotation",
+                        "rotation_rate"] = "cumulative_rotation",
 
 ) -> None:
     """Plot a raincloud plot of the cumulative totals.
@@ -107,8 +108,7 @@ def plot_raincloud(
         fig_size (tuple): Size of the figure.
     """
     # Prep data
-    one_sided_participants = get_only_one_sided_participants(data)
-    rotation_data = create_rotation_data_dataframe(one_sided_participants)
+    rotation_data = create_rotation_data_dataframe(data)
     if metric == "cumulative_rotation":
         operated_column = OPERATED_CUMULATIVE_ROTATION
         non_operated_column = NON_OPERATED_CUMULATIVE_ROTATION
@@ -240,7 +240,8 @@ def plot_heatmap(
     transparent: bool = transparent,
     dpi: int = dpi,
     titles: bool = titles,
-    metric: Literal["cumulative_rotation", "rotation_rate"] = "cumulative_rotation",
+    metric: Literal["cumulative_rotation",
+                    "rotation_rate"] = "cumulative_rotation",
 ) -> None:
 
     # Prep the data
