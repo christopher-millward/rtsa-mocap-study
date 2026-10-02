@@ -9,6 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from pathlib import Path
+from datetime import datetime, time
 from config import RAW_DATA_DIR
 from schema import ParticipantDetails, ArmRotationDetails, RotationData
 
@@ -115,6 +116,33 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
         participants.append(participant)
 
     return participants
+
+
+def _get_first_entry_time(file_path: str | Path) -> time:
+    """Extract the time from the first data entry in a tab-delimited file.
+
+    The file is expected to contain a header row and datetime values in the
+    first column using the format ``YYYY-MM-DD H:MM:SS AM/PM``.
+
+    Args:
+        file_path: Path to the tab-delimited data file.
+
+    Returns:
+        The time component of the datetime in the first data row.
+
+    Raises:
+        ValueError: If the datetime value cannot be parsed.
+    """
+    with open(file_path, "r", encoding="utf-8") as file:
+        next(file)  # Skip header row
+
+        first_row = next(file).strip().split("\t")
+        datetime_value = datetime.strptime(
+            first_row[0],
+            "%Y-%m-%d %I:%M:%S %p",
+        )
+
+    return datetime_value.time()
 
 
 def load_motion_capture_data(
