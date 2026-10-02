@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from pathlib import Path
+from datetime import time
 from modules.general_utilities import (
     create_rotation_matrices,
     convert_heatmap_to_degrees,
@@ -312,6 +313,7 @@ class TestConvertAllHeatmapsToDegrees:
             tsa_side=None,
             dominant_arm=None,
             age=30,
+            start_time=time(0, 0, 0),
             left=ArmRotationDetails(
                 humerothoracic=RotationData(
                     cumulative_rotation_heatmap=cls.create_test_heatmap(

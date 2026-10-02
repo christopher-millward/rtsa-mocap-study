@@ -103,6 +103,7 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
             tsa_side=tsa_side,
             dominant_arm=dominant_arm,
             age=cast(int, row.get('Age')),
+            start_time=_get_first_entry_time(RAW_DATA_DIR / cast(Path, row.get('fname'))),
             left=ArmRotationDetails(
                 humerothoracic=RotationData(),
                 glenohumeral=RotationData(),

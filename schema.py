@@ -1,5 +1,6 @@
 """Schema for data structures used in this repo."""
 from dataclasses import dataclass, field
+from datetime import time
 from typing import Literal
 import numpy as np
 import numpy.typing as npt
@@ -124,6 +125,7 @@ class ParticipantDetails():
         tsa_side ('right' | 'left' | 'both' | None): Side of TSA procedure ('right', 'left', 'both', or 'none').
         dominant_arm ('right' | 'left' | None): Participant's dominant arm ('right', 'left', or None).
         age (int): Participant's age in years.
+        start_time (datetime.time): The start time of the participant's motion capture recording.
         left (ArmRotationDetails): Rotation summary metrics for the left arm.
         right (ArmRotationDetails): Rotation summary metrics for the right arm.
         mocap_duration (np.float64 | None): Total raw mocap recording duration in hours.
@@ -136,6 +138,7 @@ class ParticipantDetails():
     tsa_side: Literal['right', 'left', 'both', None]
     dominant_arm: Literal['right', 'left', None]
     age: int
+    start_time: time
     left: ArmRotationDetails
     right: ArmRotationDetails
     mocap_duration: np.float64 | None = None

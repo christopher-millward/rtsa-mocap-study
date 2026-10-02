@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import pytest
 from pathlib import Path
+from datetime import time
 
 from modules.data_loading import (
     RotationData,
@@ -44,6 +45,7 @@ def participant_details() -> list[ParticipantDetails]:
             tsa_side=None,
             dominant_arm="right",
             age=65,
+            start_time=time(0, 0, 0),
             left=arm,
             right=arm,
             mocap_duration=np.float64(0.01),

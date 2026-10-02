@@ -13,6 +13,8 @@ from modules.data_loading import (
     load_participant_details
 )
 
+TEST_START_TIME = time(15, 4, 5)
+
 # ----------------------------
 # Helper Functions
 # ----------------------------
@@ -27,7 +29,9 @@ def _load_from_rows(rows):
     """Run the loader against an in-memory frame and return the parsed rows."""
     frame = _frame(rows)
 
-    with patch("pandas.read_excel", return_value=frame) as mock_read_excel:
+    with patch("pandas.read_excel", return_value=frame) as mock_read_excel, \
+        patch("modules.data_loading._get_first_entry_time",
+              return_value=TEST_START_TIME):
         participants = load_participant_details(Path("fake-path.xlsx"))
 
     mock_read_excel.assert_called_once_with(Path("fake-path.xlsx"))
@@ -87,7 +91,9 @@ class TestLoadParticipantDetails:
             ]
         )
 
-        with patch("pandas.read_excel", return_value=frame) as mock_read_excel:
+        with patch("pandas.read_excel", return_value=frame) as mock_read_excel, \
+            patch("modules.data_loading._get_first_entry_time",
+                return_value=TEST_START_TIME):
             participants = load_participant_details(filepath)
 
         mock_read_excel.assert_called_once_with(Path(filepath))
@@ -213,7 +219,7 @@ class TestLoadParticipantDetails:
         [
             pytest.param("participant-d", 74, id="expected-values"),
             pytest.param("participant-e", "74", id="string-age"),
-            pytest.param(None, None, id="missing-values"),
+            pytest.param("participant-f", None, id="missing-age"),
         ],
     )
     def test_should_preserve_filename_and_age(self, filename, age):
@@ -234,6 +240,7 @@ class TestLoadParticipantDetails:
 
         assert participants[0].filename == filename
         assert participants[0].age == age
+        assert participants[0].start_time == TEST_START_TIME
 
     def test_should_initialize_nested_arm_rotation_details_to_expected_values(self):
         participants = _load_from_rows(
@@ -387,7 +394,8 @@ class TestLoadParticipantDetails:
             right=right,
             rtsa_side=rtsa_side,
             tsa_side=None,
-            dominant_arm=None
+            dominant_arm=None,
+            start_time=time(0, 0, 0),
         )
 
         expected_operated = [
@@ -434,7 +442,8 @@ class TestLoadParticipantDetails:
             right=right,
             rtsa_side=rtsa_side,
             tsa_side=None,
-            dominant_arm=None
+            dominant_arm=None,
+            start_time=time(0, 0, 0),
         )
 
         new_left = ArmRotationDetails()
@@ -481,7 +490,8 @@ class TestLoadParticipantDetails:
             right=right,
             rtsa_side="left",
             tsa_side=None,
-            dominant_arm=None
+            dominant_arm=None,
+            start_time=time(0, 0, 0),
         )
 
         participant_details.rtsa_side = rtsa_side
