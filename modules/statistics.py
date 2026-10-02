@@ -40,7 +40,7 @@ NON_OPERATED_ROTATION_RATE = "Non-operated rotation rate"
 MOCAP_DURATION = "Mocap duration (hours)"
 
 
-def create_demographics_dataframe(
+def _create_demographics_dataframe(
     data: list[ParticipantDetails]
 ) -> pd.DataFrame:
     """Create a DataFrame of demographics for each participant.
@@ -120,9 +120,7 @@ def _create_analysis_dataframe(
                 'rotation rate': arm.humerothoracic.rotation_rate,
                 'age': participant.age,
                 'sex': participant.sex,
-                'dominant arm': (
-                    True if participant.dominant_arm == arm_type else False
-                ),
+                'dominant arm': participant.rtsa_on_dominant_arm if arm_type == "operated" else not participant.rtsa_on_dominant_arm,
             }
             rows.append(vals)
 
@@ -226,7 +224,7 @@ def run_statistics(
     data: list[ParticipantDetails],
     out_path: Path = STATISTICS_OUTPUT_PATH
 ):
-    demographics_data = create_demographics_dataframe(data)
+    demographics_data = _create_demographics_dataframe(data)
     rotation_data = create_rotation_data_dataframe(data)
     cumulative_rotation_ttest = _create_ttest_table(
         rotation_data,
