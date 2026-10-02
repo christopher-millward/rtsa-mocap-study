@@ -188,6 +188,38 @@ class TestLoadParticipantDetails:
         assert participants[0].dominant_arm == expected
 
     @pytest.mark.parametrize(
+        ("rtsa_r", "rtsa_l", "r_dom", "expected"),
+        [
+            pytest.param(1, 0, 1, True, id="right-rtsa-right-dominant"),
+            pytest.param(1, 0, 0, False, id="right-rtsa-left-dominant"),
+            pytest.param(0, 1, 1, False, id="left-rtsa-right-dominant"),
+            pytest.param(0, 1, 0, True, id="left-rtsa-left-dominant"),
+            pytest.param(1, 1, 1, True, id="bilateral-rtsa-right-dominant"),
+            pytest.param(1, 1, 0, True, id="bilateral-rtsa-left-dominant"),
+            pytest.param(0, 0, 1, None, id="no-rtsa"),
+        ],
+    )
+    def test_should_map_rtsa_on_dominant_arm(
+        self, rtsa_r, rtsa_l, r_dom, expected
+    ):
+        participants = _load_from_rows(
+            [
+                {
+                    "fname": "participant-rtsa-dominance",
+                    "RTSA-R": rtsa_r,
+                    "RTSA-L": rtsa_l,
+                    "TSA-R": 0,
+                    "TSA-L": 0,
+                    "R-DOM": r_dom,
+                    "L-DOM": 1 - r_dom,
+                    "Age": 74,
+                }
+            ]
+        )
+
+        assert participants[0].rtsa_on_dominant_arm is expected
+
+    @pytest.mark.parametrize(
         ("r_dom", "l_dom"),
         [
             pytest.param(1, 1, id="both-set"),

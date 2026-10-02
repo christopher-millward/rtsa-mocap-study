@@ -49,6 +49,7 @@ def participant_details() -> list[ParticipantDetails]:
             left=arm,
             right=arm,
             mocap_duration=np.float64(0.01),
+            rtsa_on_dominant_arm=False,
         )
     ]
 
