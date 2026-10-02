@@ -97,13 +97,14 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
                 'A participant cannot have RTSA and TSA on the same arm.'
             )
 
+        fname = cast(Path, row.get('fname'))
         participant: ParticipantDetails = ParticipantDetails(
-            filename=cast(Path, row.get('fname')),
+            filename=fname,
             rtsa_side=rtsa_side,
             tsa_side=tsa_side,
             dominant_arm=dominant_arm,
             age=cast(int, row.get('Age')),
-            start_time=_get_first_entry_time(RAW_DATA_DIR / cast(Path, row.get('fname'))),
+            start_time=_get_first_entry_time(RAW_DATA_DIR / fname),
             left=ArmRotationDetails(
                 humerothoracic=RotationData(),
                 glenohumeral=RotationData(),
