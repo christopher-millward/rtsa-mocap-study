@@ -161,20 +161,20 @@ This project was built using python version 3.12.13. The virtual environment was
 1. **Build environment**<br>
    Once you're in the project folder, create a virtual environment (using Conda or equivalent).
 
-   ```bash
-   conda create -n rtsa_mocap python=3.12
-   ```
+    ```bash
+    conda create -n rtsa_mocap python=3.12
+    ```
 
 2. **Activate the environment**
-   ```bash
-   conda activate rtsa_mocap
-   ```
+    ```bash
+    conda activate rtsa_mocap
+    ```
 3. **Install dependencies:**<br>
    Once activated, install the dependencies
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 4. **Run your code**
    Now that the environment is set up and you're inside of it, you can run what ever scripts you wish.
@@ -252,25 +252,25 @@ Columns:
 ## Next Steps / TODO
 
 - Calculate amount of motion about each axis
-  - Ok, so after some thinking, this doesn't make much sense. The difference between "flex/ext" is just a defined threshold for POE. If we were to do this, we would be setting cutoffs and creating bins to conditionally sum motion in each bin. Rather than just doing 2 bins, let's go more granular and create the same bins as in the Langohr et al (2018) paper. I think this would tell a much better story. We could then find clinical relevance by summing motion in different bins.
-  - We should output:
-    - for each bin in range(0, 180, step=20):
-      - sum:
-        - elevation
-        - IR/ER
-  - We would then label the arms op vs non-op and check for differences.
-  - Create the same figures, but with total motion instead of %time.
-  - NOTE: Do I want rotation binned by POE or by elevation? Or both? Need to think about this.
+    - Ok, so after some thinking, this doesn't make much sense. The difference between "flex/ext" is just a defined threshold for POE. If we were to do this, we would be setting cutoffs and creating bins to conditionally sum motion in each bin. Rather than just doing 2 bins, let's go more granular and create the same bins as in the Langohr et al (2018) paper. I think this would tell a much better story. We could then find clinical relevance by summing motion in different bins.
+    - We should output:
+        - for each bin in range(0, 180, step=20):
+            - sum:
+                - elevation
+                - IR/ER
+    - We would then label the arms op vs non-op and check for differences.
+    - Create the same figures, but with total motion instead of %time.
+    - NOTE: Do I want rotation binned by POE or by elevation? Or both? Need to think about this.
 
 - Clean up README doc.
-  - Add explanation of individual axis claclulations to mathematical foundation section
+    - Add explanation of individual axis claclulations to mathematical foundation section
 
 - Visually confirm that axes align following axis transforms.
-  - Waiting for Dan's confirmation.
-  - If Dan confirms that all is correct, I think I should just plot the distribution of where the humerus spends most of its time (on a sphere) and see if it's reasonable. If it looks like any of the axes need to be reversed, I'll address it with Dan.
+    - Waiting for Dan's confirmation.
+    - If Dan confirms that all is correct, I think I should just plot the distribution of where the humerus spends most of its time (on a sphere) and see if it's reasonable. If it looks like any of the axes need to be reversed, I'll address it with Dan.
 
 - (maybe) trim files.
-  - Need to align axes first so I know which axes to plot for visual inspection of "dead" data.
+    - Need to align axes first so I know which axes to plot for visual inspection of "dead" data.
 
 - (maybe) Perform sensor drift audit.
 
