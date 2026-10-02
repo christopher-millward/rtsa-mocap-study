@@ -53,7 +53,9 @@ def create_demographics_dataframe(
         - filename: The participant's filename.
         - Age: The participant's age.
         - Sex: The participant's sex.
+        - Handedness: The participant's handedness (dominant arm).
         - RTSA side: The side of the participant's RTSA (if any).
+        - RTSA On Dominant Arm: True if RTSA is on the dominant arm, False if not, None if no RTSA.
         - Start Time: The start time of the participant's motion capture recording.
         - Mocap duration (hours): Total raw mocap recording duration.
     """
@@ -65,7 +67,9 @@ def create_demographics_dataframe(
             'filename': participant.filename,
             'Age': participant.age,
             'Sex': participant.sex,
+            'Handedness': participant.dominant_arm,
             'RTSA side': participant.rtsa_side,
+            'RTSA On Dominant Arm': participant.rtsa_on_dominant_arm,
             'Start Time': participant.start_time,
             MOCAP_DURATION: participant.mocap_duration,
         }
@@ -78,7 +82,9 @@ def create_demographics_dataframe(
             "filename",
             "Age",
             "Sex",
+            "Handedness",
             "RTSA side",
+            "RTSA On Dominant Arm",
             "Start Time",
             MOCAP_DURATION,
         ],
