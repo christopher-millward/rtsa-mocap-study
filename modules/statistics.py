@@ -43,13 +43,56 @@ def get_only_one_sided_participants(
     return single_arm_participants
 
 
+def create_demographics_dataframe(
+    data: list[ParticipantDetails]
+) -> pd.DataFrame:
+    """Create a DataFrame of demographics for each participant.
+
+    Returns a DataFrame with the following columns:
+        - participant: The participant's identifier.
+        - filename: The participant's filename.
+        - Age: The participant's age.
+        - Sex: The participant's sex.
+        - RTSA side: The side of the participant's RTSA (if any).
+        - Start Time: The start time of the participant's motion capture recording.
+        - Mocap duration (hours): Total raw mocap recording duration.
+    """
+
+    rows = []
+    for i, participant in enumerate(data):
+        vals = {
+            'participant': i,
+            'filename': participant.filename,
+            'Age': participant.age,
+            'Sex': "No Data Available",
+            'RTSA side': participant.rtsa_side,
+            'Start Time': participant.start_time,
+            MOCAP_DURATION: participant.mocap_duration,
+        }
+        rows.append(vals)
+
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "participant",
+            "filename",
+            "Age",
+            "Sex",
+            "RTSA side",
+            "Start Time",
+            MOCAP_DURATION,
+        ],
+    )
+
+
 def create_rotation_data_dataframe(
     data: list[ParticipantDetails]
 ) -> pd.DataFrame:
     """Create a DataFrame of cumulative rotation and rate for each participant.
 
     Returns a DataFrame with the following columns:
-        - participant: The participant's filename identifier.
+        - participant: The participant's identifier.
+        - filename: The participant's filename.
         - Operated cumulative rotation: Cumulative rotation for the operated arm.
         - Non-operated cumulative rotation: Cumulative rotation for the non-operated arm.
         - Operated rotation rate: Rotation rate for the operated arm.
@@ -65,9 +108,10 @@ def create_rotation_data_dataframe(
     one_sided_participants = get_only_one_sided_participants(data)
 
     rows = []
-    for participant in one_sided_participants:
+    for i, participant in enumerate(one_sided_participants):
         vals = {
-            'participant': participant.filename,
+            'participant': i,
+            'filename': participant.filename,
             OPERATED_CUMULATIVE_ROTATION: participant.operated[0].humerothoracic.trace_total,
             NON_OPERATED_CUMULATIVE_ROTATION: participant.non_operated[0].humerothoracic.trace_total,
             OPERATED_ROTATION_RATE: participant.operated[0].humerothoracic.rotation_rate,
@@ -80,6 +124,7 @@ def create_rotation_data_dataframe(
         rows,
         columns=[
             "participant",
+            "filename",
             OPERATED_CUMULATIVE_ROTATION,
             NON_OPERATED_CUMULATIVE_ROTATION,
             OPERATED_ROTATION_RATE,
@@ -129,6 +174,7 @@ def run_statistics(
     data: list[ParticipantDetails],
     out_path: Path = STATISTICS_OUTPUT_PATH
 ):
+    demographics_data = create_demographics_dataframe(data)
     rotation_data = create_rotation_data_dataframe(data)
     cumulative_summary = _create_summary_table(
         rotation_data,
@@ -143,16 +189,24 @@ def run_statistics(
 
     # Save the tables to an Excel file
     with pd.ExcelWriter(out_path) as writer:
+        demographics_data.to_excel(
+            writer,
+            sheet_name="demographics",
+            index=False
+        )
         rotation_data.to_excel(
-            writer, sheet_name="rotation_data_by_arm", index=False)
+            writer,
+            sheet_name="rotation_data_by_arm",
+            index=False
+        )
         cumulative_summary.to_excel(
             writer,
-            sheet_name="cumulative_rotation_summary",
+            sheet_name="cumulative_rotation_stats",
             index=False,
         )
         rotation_rate_summary.to_excel(
             writer,
-            sheet_name="rotation_rate_summary",
+            sheet_name="rotation_rate_stats",
             index=False,
         )
 
