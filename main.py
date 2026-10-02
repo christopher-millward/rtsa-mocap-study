@@ -26,9 +26,13 @@ def main():
     participant_details = load_participant_details(
         RAW_PARTICIPANT_DETAILS_PATH)
 
-    # remove all files with no RTSA
+    # Keep only participants with one RTSA and the other arm as non-operated (i.e., exclude participants with no RTSA or bilateral RTSA)
     participant_details = [
-        participant for participant in participant_details if participant.rtsa_side is not None]
+        participant for participant in participant_details
+        if participant.rtsa_side is not None
+        and participant.rtsa_side != 'both'
+        and participant.tsa_side is None
+    ]
 
     # Set up progress bar
     initialize_pbar(participant_details)
