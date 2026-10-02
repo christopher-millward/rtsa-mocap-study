@@ -134,7 +134,7 @@ def create_rotation_data_dataframe(
     )
 
 
-def _create_summary_table(
+def _create_ttest_table(
     rotation_data: pd.DataFrame,
     operated_column: str,
     non_operated_column: str,
@@ -176,12 +176,12 @@ def run_statistics(
 ):
     demographics_data = create_demographics_dataframe(data)
     rotation_data = create_rotation_data_dataframe(data)
-    cumulative_summary = _create_summary_table(
+    cumulative_summary = _create_ttest_table(
         rotation_data,
         OPERATED_CUMULATIVE_ROTATION,
         NON_OPERATED_CUMULATIVE_ROTATION,
     )
-    rotation_rate_summary = _create_summary_table(
+    rotation_rate_summary = _create_ttest_table(
         rotation_data,
         OPERATED_ROTATION_RATE,
         NON_OPERATED_ROTATION_RATE,
