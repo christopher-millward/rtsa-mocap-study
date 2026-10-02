@@ -103,6 +103,11 @@ def load_participant_details(filepath: str | Path) -> List[ParticipantDetails]:
             rtsa_side=rtsa_side,
             tsa_side=tsa_side,
             dominant_arm=dominant_arm,
+            rtsa_on_dominant_arm=(
+                None
+                if rtsa_side is None
+                else dominant_arm in _arms_for_side(rtsa_side)
+            ),
             age=cast(int, row.get('Age')),
             start_time=_get_first_entry_time(RAW_DATA_DIR / fname),
             left=ArmRotationDetails(
