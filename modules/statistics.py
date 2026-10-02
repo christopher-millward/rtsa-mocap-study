@@ -182,12 +182,12 @@ def run_statistics(
 ):
     demographics_data = create_demographics_dataframe(data)
     rotation_data = create_rotation_data_dataframe(data)
-    cumulative_summary = _create_ttest_table(
+    cumulative_rotation_ttest = _create_ttest_table(
         rotation_data,
         OPERATED_CUMULATIVE_ROTATION,
         NON_OPERATED_CUMULATIVE_ROTATION,
     )
-    rotation_rate_summary = _create_ttest_table(
+    rotation_rate_ttest = _create_ttest_table(
         rotation_data,
         OPERATED_ROTATION_RATE,
         NON_OPERATED_ROTATION_RATE,
@@ -205,12 +205,12 @@ def run_statistics(
             sheet_name="rotation_data_by_arm",
             index=False
         )
-        cumulative_summary.to_excel(
+        cumulative_rotation_ttest.to_excel(
             writer,
             sheet_name="cumulative_rotation_stats",
             index=False,
         )
-        rotation_rate_summary.to_excel(
+        rotation_rate_ttest.to_excel(
             writer,
             sheet_name="rotation_rate_stats",
             index=False,
