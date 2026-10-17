@@ -9,7 +9,6 @@ I am going to run both paired t-tests and mixed effects models to compare both:
 - difference in rotation rate between op and non-op arms
 
 while controlling for:
-- age
 - sex
 - dominant arm
 
@@ -19,7 +18,6 @@ have the following columns:
 - participant: The participant's identifier.
 - arm: The arm (operated or non-operated).
 - rotation rate: The rotation rate for the arm.
-- age: The participant's age.
 - sex: The participant's sex.
 - dominant arm: Whether or not this is the participant's dominant arm (boolean).
 """
@@ -38,7 +36,12 @@ NON_OPERATED_CUMULATIVE_ROTATION = "Non-operated cumulative rotation"
 OPERATED_ROTATION_RATE = "Operated rotation rate"
 NON_OPERATED_ROTATION_RATE = "Non-operated rotation rate"
 MOCAP_DURATION = "Mocap duration (hours)"
+SEX = "Sex"
 
+
+# -------------------------------------------------------------------
+# Helper functions
+# -------------------------------------------------------------------
 
 def _create_demographics_dataframe(
     data: list[ParticipantDetails]
@@ -142,6 +145,9 @@ def create_rotation_data_dataframe(
 ) -> pd.DataFrame:
     """Create a DataFrame of cumulative rotation and rate for each participant.
 
+    Args:
+        data (list[ParticipantDetails]): List of ParticipantDetails objects.
+
     Returns a DataFrame with the following columns:
         - participant: The participant's identifier.
         - filename: The participant's filename.
@@ -210,10 +216,8 @@ def _create_ttest_table(
             rotation_data[non_operated_column].std(),
         ],
         "CofV": [
-            rotation_data[operated_column].std(
-            ) / rotation_data[operated_column].mean(),
-            rotation_data[non_operated_column].std(
-            ) / rotation_data[non_operated_column].mean(),
+            rotation_data[operated_column].std() / rotation_data[operated_column].mean(),
+            rotation_data[non_operated_column].std() / rotation_data[non_operated_column].mean(),
         ],
         "t-statistic": [t_stat, t_stat],
         "p-value": [p_value, p_value],
@@ -225,12 +229,15 @@ def run_statistics(
     out_path: Path = STATISTICS_OUTPUT_PATH
 ):
     demographics_data = _create_demographics_dataframe(data)
+
     rotation_data = create_rotation_data_dataframe(data)
+
     cumulative_rotation_ttest = _create_ttest_table(
         rotation_data,
         OPERATED_CUMULATIVE_ROTATION,
         NON_OPERATED_CUMULATIVE_ROTATION,
     )
+    
     rotation_rate_ttest = _create_ttest_table(
         rotation_data,
         OPERATED_ROTATION_RATE,
