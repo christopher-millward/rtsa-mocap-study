@@ -251,31 +251,6 @@ Columns:
 
 ## Next Steps / TODO
 
-- Calculate amount of motion about each axis
-    - Ok, so after some thinking, this doesn't make much sense. The difference between "flex/ext" is just a defined threshold for POE. If we were to do this, we would be setting cutoffs and creating bins to conditionally sum motion in each bin. Rather than just doing 2 bins, let's go more granular and create the same bins as in the Langohr et al (2018) paper. I think this would tell a much better story. We could then find clinical relevance by summing motion in different bins.
-    - We should output:
-        - for each bin in range(0, 180, step=20):
-            - sum:
-                - elevation
-                - IR/ER
-    - We would then label the arms op vs non-op and check for differences.
-    - Create the same figures, but with total motion instead of %time.
-    - NOTE: Do I want rotation binned by POE or by elevation? Or both? Need to think about this.
-
 - Clean up README doc.
     - Add explanation of individual axis claclulations to mathematical foundation section
 
-- Visually confirm that axes align following axis transforms.
-    - Waiting for Dan's confirmation.
-    - If Dan confirms that all is correct, I think I should just plot the distribution of where the humerus spends most of its time (on a sphere) and see if it's reasonable. If it looks like any of the axes need to be reversed, I'll address it with Dan.
-
-- (maybe) trim files.
-    - Need to align axes first so I know which axes to plot for visual inspection of "dead" data.
-
-- (maybe) Perform sensor drift audit.
-
-- (maybe) build scapular correction module (can switch out module logic later)
-
-- Visualization functions (trajectories, heatmaps, statistical plots)
-
-- Statistical analysis and export
