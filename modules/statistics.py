@@ -725,10 +725,6 @@ def _time_to_hours(clock_time: datetime) -> float:
     if clock_time is None or pd.isna(clock_time):
         return np.nan
 
-    if not isinstance(clock_time, datetime):
-        raise TypeError(
-            f"Expected a datetime object, got {type(clock_time).__name__}"
-        )
     return (
         clock_time.hour
         + clock_time.minute / 60
@@ -848,7 +844,6 @@ def _create_demographics_summary_table(
         for name, group in groups.items():
             values = group[column]
             if is_clock_time:
-                values = pd.to_datetime(values)
                 values = values.map(_time_to_hours)
             summaries[name] = _summarize_continuous_variable(
                 values, decimals, is_clock_time
