@@ -72,7 +72,7 @@ hypotheses. Results should be read as exploratory.
 
 Age is intentionally not analyzed. All tests use alpha = 0.05.
 """
-# from __future__ import annotations
+
 import warnings
 from collections.abc import Callable
 from pathlib import Path
@@ -81,6 +81,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 from scipy import stats
+from datetime import datetime
 
 from config import STATISTICS_OUTPUT_PATH, RESULTS_PICKLE_PATH
 from schema import ParticipantDetails
@@ -160,6 +161,22 @@ DESCRIPTIVE_SUBGROUPS: list[tuple[str, str | None, object]] = [
     ("Sex = M", SEX_CODE, "M"),
     ("RTSA on dominant arm = True", DOMINANT_ARM_SURGERY, True),
     ("RTSA on dominant arm = False", DOMINANT_ARM_SURGERY, False),
+]
+
+# Continuous demographic variables: (row label, demographics column,
+# decimal places, is a clock time).
+DEMOGRAPHIC_CONTINUOUS_VARIABLES: list[tuple[str, str, int, bool]] = [
+    ("Age (years)", "Age", 1, False),
+    ("Recording start time (hh:mm)", "Start Time", 0, True),
+    ("Recording duration (hours)", MOCAP_DURATION, 1, False),
+]
+
+# Categorical demographic variables shown as n (%): (row label,
+# statistic label, demographics column, level counted).
+DEMOGRAPHIC_COUNT_VARIABLES: list[tuple[str, str, str, object]] = [
+    ("RTSA side, n (%)", "Left", "RTSA side", "left"),
+    ("RTSA side, n (%)", "Right", "RTSA side", "right"),
+    ("RTSA on dominant arm, n (%)", "Yes", "RTSA On Dominant Arm", True),
 ]
 
 
@@ -699,6 +716,172 @@ def _create_distribution_table(analysis_data: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _time_to_hours(clock_time: datetime) -> float:
+    """Convert a `datetime` to decimal hours after midnight.
+
+    Returns NaN for a missing value, so missing start times are left out
+    of the summary rather than treated as midnight.
+    """
+    if clock_time is None or pd.isna(clock_time):
+        return np.nan
+
+    if not isinstance(clock_time, datetime):
+        raise TypeError(
+            f"Expected a datetime object, got {type(clock_time).__name__}"
+        )
+    return (
+        clock_time.hour
+        + clock_time.minute / 60
+        + clock_time.second / 3600
+    )
+
+
+def _format_clock(hours: float) -> str:
+    """Format decimal hours after midnight as a 24-hour "hh:mm" string."""
+    total_minutes = round(hours * 60)
+    return f"{total_minutes // 60:02d}:{total_minutes % 60:02d}"
+
+
+def _summarize_continuous_variable(
+    values: pd.Series,
+    decimals: int,
+    is_clock_time: bool,
+) -> dict[str, str]:
+    """Describe the distribution of one continuous variable as text.
+
+    Uses `_describe_distribution` so these statistics are calculated the
+    same way as in the rotation-rate distribution table.
+
+    Args:
+        values: Values for one group of participants (may contain NaN).
+        decimals: Decimal places for values in the variable's units.
+        is_clock_time: True if `values` are hours after midnight. Clock
+            values are shown as hh:mm and the SD in minutes.
+
+    Returns:
+        Mapping of statistic label to formatted cell text.
+    """
+    values = values.dropna()
+    if values.empty:
+        return {"n": "0"}
+    summary = _describe_distribution(values)
+
+    def format_value(value: float) -> str:
+        if np.isnan(value):  # e.g. SD or skewness of a very small group
+            return "-"
+        if is_clock_time:
+            return _format_clock(value)
+        return f"{value:.{decimals}f}"
+
+    if is_clock_time and not np.isnan(summary["Std"]):
+        spread = f"{summary['Std'] * 60:.0f} min"
+    else:
+        spread = format_value(summary["Std"])
+    skewness = summary["Skewness"]
+
+    return {
+        "n": f"{summary['n']}",
+        "Mean ± SD": f"{format_value(summary['Mean'])} ± {spread}",
+        "Median [IQR]": (
+            f"{format_value(summary['Median'])} "
+            f"[{format_value(summary['Q1 (25th percentile)'])}–"
+            f"{format_value(summary['Q3 (75th percentile)'])}]"
+        ),
+        "Range (min–max)": (
+            f"{format_value(summary['Min'])}–{format_value(summary['Max'])}"
+        ),
+        "Skewness": "–" if np.isnan(skewness) else f"{skewness:.2f}",
+    }
+
+
+def _summarize_count(values: pd.Series, level: object) -> str:
+    """Return "n (%)" for one level of a categorical variable.
+
+    The percentage uses participants with a recorded value as the
+    denominator, so missing values do not count as "not this level".
+    """
+    recorded = values.dropna()
+    count = int((recorded == level).sum())
+    if recorded.empty:
+        return "0 (-)"
+    return f"{count} ({count / len(recorded):.0%})"
+
+
+def _create_demographics_summary_table(
+    demographics_data: pd.DataFrame,
+) -> pd.DataFrame:
+    """Summarize participant characteristics by sex, ready for publication.
+
+    The table follows the usual "Table 1" layout: one block of rows per
+    characteristic and one column each for female, male and all
+    participants, with the group size in the column header. Continuous
+    variables (age, start time, duration) show n, mean ± SD, median [IQR],
+    range and skewness. Categorical variables (RTSA side, RTSA on dominant
+    arm) show n (%), because a mean, range or skewness of a yes/no
+    variable carries no extra information.
+
+    Every participant is in the "All" column, including anyone whose sex is
+    not recorded as "F" or "M".
+
+    Args:
+        demographics_data: Output of `_create_demographics_dataframe`.
+
+    Returns:
+        DataFrame with columns "Characteristic", "Statistic" and one column
+        per group. The characteristic name appears only on the first row of
+        its block, for readability. All cells are formatted text.
+    """
+    groups = {
+        "Female": demographics_data[demographics_data[SEX] == "F"],
+        "Male": demographics_data[demographics_data[SEX] == "M"],
+        "All": demographics_data,
+    }
+    group_columns = {
+        name: f"{name} (n = {len(group)})" for name, group in groups.items()
+    }
+
+    rows = []
+    for label, column, decimals, is_clock_time in (
+        DEMOGRAPHIC_CONTINUOUS_VARIABLES
+    ):
+        summaries = {}
+        for name, group in groups.items():
+            values = group[column]
+            if is_clock_time:
+                values = pd.to_datetime(values)
+                values = values.map(_time_to_hours)
+            summaries[name] = _summarize_continuous_variable(
+                values, decimals, is_clock_time
+            )
+
+        for statistic in summaries["All"]:
+            rows.append({
+                "Characteristic": label,
+                "Statistic": statistic,
+                **{
+                    group_columns[name]: summary.get(statistic, "-")
+                    for name, summary in summaries.items()
+                },
+            })
+
+    for label, statistic, column, level in DEMOGRAPHIC_COUNT_VARIABLES:
+        rows.append({
+            "Characteristic": label,
+            "Statistic": statistic,
+            **{
+                group_columns[name]: _summarize_count(group[column], level)
+                for name, group in groups.items()
+            },
+        })
+
+    table = pd.DataFrame(rows)
+    repeated_label = table["Characteristic"].eq(
+        table["Characteristic"].shift()
+    )
+    table.loc[repeated_label, "Characteristic"] = ""
+    return table
+
+
 # -------------------------------------------------------------------
 # Helper functions: paired-difference regression models
 # -------------------------------------------------------------------
@@ -886,13 +1069,18 @@ def run_statistics(
     demographics_data = _create_demographics_dataframe(data)
     rotation_data = create_rotation_data_dataframe(data)
 
-    # 2. Long-format data for analysis (one row per arm), validated
+    # 2. Demographics summary table
+    demographics_summary = _create_demographics_summary_table(
+        demographics_data
+    )
+
+    # 3. Long-format data for analysis (one row per arm), validated
     analysis_data = _validate_analysis_data(_create_analysis_dataframe(data))
 
-    # 3. Primary objective: distribution of rotation rate
+    # 4. Primary objective: distribution of rotation rate
     rotation_rate_distribution = _create_distribution_table(analysis_data)
 
-    # 4. Operated vs non-operated arms: paired t-tests
+    # 5. Operated vs non-operated arms: paired t-tests
     cumulative_rotation_ttest = _create_paired_ttest_table(
         analysis_data, CUMULATIVE_ROTATION
     )
@@ -900,14 +1088,15 @@ def run_statistics(
         analysis_data, ROTATION_RATE
     )
 
-    # 5. Operated vs non-operated difference, controlling for sex and/or
+    # 6. Operated vs non-operated difference, controlling for sex and/or
     #    dominant-arm surgery: paired-difference regressions A-D
     difference_model_results = _fit_difference_models(analysis_data)
 
-    # 6. Save the tables to an Excel file
+    # 7. Save the tables to an Excel file
     _save_tables_to_excel(
         {
-            "demographics": demographics_data,
+            "raw_demographics": demographics_data,
+            "demographics_summary": demographics_summary,
             "rotation_data_by_arm": rotation_data,
             "rotation_rate_distribution": rotation_rate_distribution,
             "cumulative_rotation_stats": cumulative_rotation_ttest,
