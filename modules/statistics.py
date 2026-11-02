@@ -24,13 +24,15 @@ Statistical approach
 * Operated vs non-operated: every participant contributes one measurement
   from each arm, so the arms are compared with a paired-samples t-test
   (`scipy.stats.ttest_rel`) on each participant's operated minus
-  non-operated difference. A Wilcoxon signed-rank test is reported alongside
-  as a sensitivity check.
+  non-operated difference, with n - 1 degrees of freedom. A Wilcoxon
+  signed-rank test is reported alongside as a sensitivity check.
 * Male vs female, and dominant vs non-dominant RTSA: every participant has
   one operated arm, so these are independent groups. They are compared with
   Welch's two-sample t-test (`scipy.stats.ttest_ind` with
   ``equal_var=False``, which does not assume equal variances), with a
-  Mann-Whitney U test as the sensitivity check. The SD, skewness and
+  Mann-Whitney U test as the sensitivity check. Its degrees of freedom come
+  from the Welch-Satterthwaite approximation, so they are usually not a
+  whole number. The SD, skewness and
   Shapiro-Wilk p of per-participant differences are not defined for
   independent groups, so they are marked as not applicable; each group's own
   skewness and Shapiro-Wilk p are in its distribution table.
@@ -677,6 +679,7 @@ def _compare_operated_to_non_operated(
     # their `statistic`/`pvalue` attributes; unpacking the tuples avoids this.
     test = stats.ttest_rel(pairs[OPERATED], pairs[NON_OPERATED])
     t_statistic, p_value = test
+    degrees_of_freedom = test.df  # n - 1 for a paired t-test
     confidence_interval = test.confidence_interval(confidence_level=1 - ALPHA)
     _, wilcoxon_p = stats.wilcoxon(differences)
 
@@ -692,6 +695,7 @@ def _compare_operated_to_non_operated(
             CI_LOWER: confidence_interval.low,
             CI_UPPER: confidence_interval.high,
             "t-statistic": t_statistic,
+            "Degrees of freedom": degrees_of_freedom,
             "p-value": p_value,
             "Shapiro-Wilk p": _shapiro_p_value(differences),
             "Skewness": _skewness(differences),
@@ -748,6 +752,10 @@ def _compare_operated_arm_groups(
     # their `statistic`/`pvalue` attributes; unpacking the tuples avoids this.
     test = stats.ttest_ind(first, second, equal_var=False)
     t_statistic, p_value = test
+    # `df` is not part of the tuple, so it must be read as an attribute and
+    # the linter error silenced. It is the Welch-Satterthwaite df, which is
+    # usually fractional.
+    degrees_of_freedom = test.df  # type: ignore
     confidence_interval = test.confidence_interval(confidence_level=1 - ALPHA)
     _, mann_whitney_p = stats.mannwhitneyu(first, second)
 
@@ -761,6 +769,7 @@ def _compare_operated_arm_groups(
             CI_LOWER: confidence_interval.low,
             CI_UPPER: confidence_interval.high,
             "t-statistic": t_statistic,
+            "Degrees of freedom": degrees_of_freedom,
             "p-value": p_value,
             "Shapiro-Wilk p": NOT_APPLICABLE,
             "Skewness": NOT_APPLICABLE,
