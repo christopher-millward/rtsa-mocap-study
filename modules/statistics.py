@@ -36,6 +36,10 @@ Statistical approach
   Shapiro-Wilk p of per-participant differences are not defined for
   independent groups, so they are marked as not applicable; each group's own
   skewness and Shapiro-Wilk p are in its distribution table.
+* Operated-arm subgroups: one table describes the operated-arm rotation rate
+  of men, women, dominant arms and non-dominant arms side by side. It is
+  descriptive only (each participant appears in one sex group and one
+  dominance group, so the four columns are not mutually exclusive).
 
 No p-value adjustment is applied. All tests are two-sided with alpha = 0.05.
 """
@@ -705,6 +709,84 @@ def _compare_operated_to_non_operated(
     return [distribution_table, difference_table]
 
 
+def _split_operated_arm_groups(
+    analysis_data: pd.DataFrame,
+    column: str,
+    levels: dict[str, object],
+    comparison_name: str,
+) -> dict[str, pd.Series]:
+    """Split operated-arm rotation rates into groups defined by ``column``.
+
+    Participants missing the operated rotation rate or ``column`` are
+    excluded (with a warning) by `_select_complete_cases`.
+
+    Args:
+        analysis_data: Validated analysis data.
+        column: Participant-level column that defines the groups.
+        levels: Mapping of group label to the value of ``column`` for that
+            group, in the order the groups should be returned.
+        comparison_name: Name used in exclusion messages.
+
+    Returns:
+        Mapping of group label to that group's operated-arm rotation rates.
+    """
+    cases = _select_complete_cases(
+        analysis_data, [OPERATED, column], comparison_name
+    )
+    return {
+        label: cases.loc[cases[column] == level, OPERATED]
+        for label, level in levels.items()
+    }
+
+
+def operated_rotation_rate_subgroups(
+    data: list[ParticipantDetails],
+) -> dict[str, dict[str, pd.Series]]:
+    """Return operated-arm rotation rates for the sex and dominance groups.
+
+    The groups are built exactly as in `run_statistics` (same validation and
+    exclusions), so a figure made from them matches the Excel tables.
+
+    Args:
+        data: List of ParticipantDetails objects, one per participant.
+
+    Returns:
+        Mapping of comparison name to {group label: rotation rates}, with the
+        comparisons "Sex" (Men, Women) and "Dominance" (Dominant arm,
+        Non-dominant arm).
+    """
+    return _operated_arm_subgroups(
+        _validate_analysis_data(_create_analysis_dataframe(data))
+    )
+
+
+def _operated_arm_subgroups(
+    analysis_data: pd.DataFrame,
+) -> dict[str, dict[str, pd.Series]]:
+    """Split operated-arm rotation rates by sex and by arm dominance.
+
+    Args:
+        analysis_data: Validated analysis data.
+
+    Returns:
+        See `operated_rotation_rate_subgroups`.
+    """
+    return {
+        "Sex": _split_operated_arm_groups(
+            analysis_data,
+            column=SEX_CODE,
+            levels={"Men": "M", "Women": "F"},
+            comparison_name="Male vs female operated arms",
+        ),
+        "Dominance": _split_operated_arm_groups(
+            analysis_data,
+            column=DOMINANT_ARM_SURGERY,
+            levels={"Dominant arm": True, "Non-dominant arm": False},
+            comparison_name="Dominant vs non-dominant operated arms",
+        ),
+    }
+
+
 def _compare_operated_arm_groups(
     analysis_data: pd.DataFrame,
     column: str,
@@ -735,13 +817,9 @@ def _compare_operated_arm_groups(
         Two tables: the distribution of operated-arm rotation rate in each
         group, and the statistics of the difference between the groups.
     """
-    cases = _select_complete_cases(
-        analysis_data, [OPERATED, column], comparison_name
+    groups = _split_operated_arm_groups(
+        analysis_data, column, levels, comparison_name
     )
-    groups = {
-        label: cases.loc[cases[column] == level, OPERATED]
-        for label, level in levels.items()
-    }
     _check_enough_data(
         {label: len(values) for label, values in groups.items()},
         comparison_name,
@@ -847,7 +925,14 @@ def run_statistics(
         comparison_name="Dominant vs non-dominant operated arms",
     )
 
-    # 5. Save the tables to an Excel file
+    # 5. Rotation rate distribution of the operated arm in every subgroup
+    subgroup_distribution = _create_distribution_table({
+        label: values
+        for groups in _operated_arm_subgroups(analysis_data).values()
+        for label, values in groups.items()
+    })
+
+    # 6. Save the tables to an Excel file
     _save_tables_to_excel(
         {
             "raw_demographics": [demographics_data],
@@ -856,6 +941,7 @@ def run_statistics(
             "operated_vs_non_operated": operated_vs_non_operated,
             "male_vs_female": male_vs_female,
             "dominant_vs_non_dominant": dominant_vs_non_dominant,
+            "operated_arm_subgroups": [subgroup_distribution],
         },
         out_path,
     )
@@ -865,12 +951,22 @@ def run_statistics(
 # main() runner to re-run all statistics if this module is run directly
 # -------------------------------------------------------------------
 def main() -> None:
-    """Re-run all statistics if this module is run directly."""
+    """Re-run all statistics if this module is run directly.
+
+    Also draws the operated-arm subgroup raincloud figure. `modules.plots`
+    imports this module, so it is imported here rather than at the top of
+    the file to avoid a circular import.
+    """
+    from modules.plots import plot_operated_subgroup_raincloud
+
     # Load data from pickle
     data = pd.read_pickle(Path(RESULTS_PICKLE_PATH))
 
     # Run all statistics
     run_statistics(data)
+
+    # Plot the operated-arm rotation rate of each subgroup
+    plot_operated_subgroup_raincloud(data)
 
 
 if __name__ == "__main__":
