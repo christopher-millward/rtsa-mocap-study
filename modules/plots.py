@@ -17,6 +17,7 @@ from config import (
     CUMULATIVE_MOTION_RAINCLOUD_PATH,
     OPERATED_CUMULATIVE_MOTION_HEATMAP_PATH,
     OPERATED_ROTATION_RATE_HEATMAP_PATH,
+    OPERATED_SUBGROUP_RAINCLOUD_PATH,
     RESULTS_PICKLE_PATH,
     ROTATION_RATE_RAINCLOUD_PATH,
 )
@@ -25,7 +26,8 @@ from modules.statistics import (
     NON_OPERATED_ROTATION_RATE,
     OPERATED_CUMULATIVE_ROTATION,
     OPERATED_ROTATION_RATE,
-    create_rotation_data_dataframe
+    create_rotation_data_dataframe,
+    operated_rotation_rate_subgroups,
 )
 from schema import ParticipantDetails
 
@@ -229,6 +231,114 @@ def plot_raincloud(
                 transparent=transparent)
 
 
+def plot_operated_subgroup_raincloud(
+    data: list[ParticipantDetails],
+    out_path: Path = OPERATED_SUBGROUP_RAINCLOUD_PATH,
+    fig_size: tuple[float, float] = (fig_size[0], 7.0),
+    palette: str = palette,
+    transparent: bool = transparent,
+    dpi: int = dpi,
+    titles: bool = titles,
+) -> None:
+    """Plot stacked rainclouds of operated-arm rotation rate by subgroup.
+
+    One raincloud per group, top to bottom: men, women, RTSA on the dominant
+    arm, RTSA on the non-dominant arm. Every participant has one operated
+    arm, so the groups within each pair are independent and no pairing
+    lines are drawn. Each pair is annotated with its Welch's t-test p-value,
+    the same test reported in the statistics workbook.
+
+    The groups come from `operated_rotation_rate_subgroups`, so they have
+    the same validation and exclusions as the statistics workbook.
+
+    Args:
+        data (list[ParticipantDetails]): List of ParticipantDetails objects.
+        out_path (Path): Path to save the plot.
+        fig_size (tuple): Size of the figure.
+        palette (str): Color palette for the groups.
+        transparent (bool): Whether to save with a transparent background.
+        dpi (int): Resolution of the saved figure.
+        titles (bool): Whether to add a title.
+    """
+    # Prep data: one row per (group, participant) in long format
+    comparisons = operated_rotation_rate_subgroups(data)
+    groups = {
+        label: values
+        for comparison in comparisons.values()
+        for label, values in comparison.items()
+    }
+    order = list(groups)
+    df_long = pd.concat(
+        [
+            pd.DataFrame({"group": label, "rate": values.to_numpy()})
+            for label, values in groups.items()
+        ],
+        ignore_index=True,
+    )
+
+    # Make raincloud
+    fig, ax = plt.subplots(figsize=fig_size)
+    pt.RainCloud(
+        data=df_long,
+        x="group",  # type: ignore
+        y="rate",  # type: ignore
+        order=order,
+        hue="group",  # type: ignore
+        hue_order=order,
+        palette=sns.color_palette(palette, n_colors=len(order)),
+        jitter=False,
+        bw=0.2,
+        width_viol=0.7,
+        orient="h",
+        ax=ax,
+    )
+    # RainCloud adds a redundant legend when hue is set
+    if ax.get_legend() is not None:
+        ax.get_legend().remove()
+
+    ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.1e}"))
+    ax.set_xlabel("Humerothoracic Rotation Rate (degrees per hour)")
+    ax.set_ylabel("")
+    ax.set_yticks(
+        range(len(order)),
+        [f"{label}\n(n = {len(groups[label])})" for label in order],
+    )
+    if titles:
+        ax.set_title(
+            "Distribution of Humerothoracic Rotation Rate in Operated "
+            "Shoulders by Sex and Arm Dominance"
+        )
+
+    # Annotate each pair with a bracket and its Welch's t-test p-value
+    x_min, x_max = df_long["rate"].min(), df_long["rate"].max()
+    x_range = x_max - x_min
+    x_bracket = x_max + 0.05 * x_range
+    bracket_width = 0.02 * x_range
+    for position, comparison in enumerate(comparisons.values()):
+        first, second = comparison.values()
+        _, p_value = stats.ttest_ind(first, second, equal_var=False)
+        y_top, y_bottom = 2 * position, 2 * position + 1
+        ax.plot(
+            [x_bracket - bracket_width, x_bracket, x_bracket,
+             x_bracket - bracket_width],
+            [y_top, y_top, y_bottom, y_bottom],
+            color="black",
+            linewidth=1,
+        )
+        ax.text(
+            x_bracket + 0.01 * x_range,
+            (y_top + y_bottom) / 2,
+            f"$p = {p_value:.2f}$",
+            ha="left",
+            va="center",
+            fontsize=8,
+        )
+
+    plt.savefig(out_path, dpi=dpi, bbox_inches="tight",
+                transparent=transparent)
+    plt.close(fig)
+
+
 def plot_heatmap(
     data: list[ParticipantDetails],
     side: Literal["operated", "non_operated"],
@@ -358,6 +468,14 @@ def create_and_save_all_figures(
         dpi=dpi,
         titles=titles,
         metric="rotation_rate",
+    )
+
+    plot_operated_subgroup_raincloud(
+        data=data,
+        palette=palette,
+        transparent=transparent,
+        dpi=dpi,
+        titles=titles,
     )
 
     plot_heatmap(
